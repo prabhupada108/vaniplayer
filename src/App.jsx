@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
     Search, Play, Pause, ChevronLeft, ChevronRight,
     X, Shuffle, RotateCcw, RotateCw,
-    MoreHorizontal, AlertCircle, Loader2, Link2, Info
+    MoreHorizontal, AlertCircle, Loader2, Link2, Info, Share2
 } from 'lucide-react'
 import prabhupadaImg from './assets/prabhupada.png'
 import rnsmImg from './assets/rnsm.png'
@@ -66,6 +66,17 @@ const resolveUrl = (track) => {
     return url
 }
 
+const buildShareUrl = (track, tab) => {
+    const base = `${window.location.origin}${window.location.pathname}`
+    const params = new URLSearchParams()
+    if (tab) params.set('tab', tab)
+    if (track?.title) params.set('title', String(track.title))
+    if (track?.Theme) params.set('theme', String(track.Theme))
+    if (track?.link) params.set('link', String(track.link))
+    const query = params.toString()
+    return query ? `${base}?${query}` : base
+}
+
 const VaniPlayer = () => {
     const [vaniData, setVaniData] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -85,6 +96,7 @@ const VaniPlayer = () => {
     const [playbackRate, setPlaybackRate] = useState(1)
     const [showDetail, setShowDetail] = useState(false)
     const [playbackError, setPlaybackError] = useState(null)
+    const [shareNotice, setShareNotice] = useState('')
     const storageKey = 'vani_progress'
 
     const audioRef = useRef(new Audio())
@@ -109,6 +121,8 @@ const VaniPlayer = () => {
     // Load last progress (Local)
     useEffect(() => {
         if (!vaniData) return
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('link') || params.get('title') || params.get('theme')) return
         try {
             const raw = localStorage.getItem(storageKey)
             if (!raw) return
@@ -173,6 +187,26 @@ const VaniPlayer = () => {
             .catch(err => { setLoadError(err.message); setLoading(false); });
     }, [])
 
+    useEffect(() => {
+        if (!vaniData) return
+        const params = new URLSearchParams(window.location.search)
+        if (!params.size) return
+        const sharedTrack = {
+            title: params.get('title') || '',
+            Theme: params.get('theme') || '',
+            link: params.get('link') || ''
+        }
+        const tab = params.get('tab') || ''
+        const resolved = findTrackInData(vaniData, sharedTrack)
+        if (resolved?.track) {
+            setActiveTab(resolved.tab || tab || Object.keys(vaniData)[0] || '')
+            setCurrentTrack(resolved.track)
+            setCurrentTrackTab(resolved.tab || tab || '')
+            return
+        }
+        if (tab && vaniData[tab]) setActiveTab(tab)
+    }, [vaniData])
+
     useEffect(() => { if (listRef.current) listRef.current.scrollTop = 0; }, [activeTab, search])
 
     useEffect(() => {
@@ -185,6 +219,13 @@ const VaniPlayer = () => {
         const resolved = findTrackInData(vaniData, currentTrack)
         if (resolved?.tab) setCurrentTrackTab(resolved.tab)
     }, [currentTrack, currentTrackTab, vaniData])
+
+    useEffect(() => {
+        if (!currentTrack) return
+        const tabForTrack = currentTrackTab || activeTab
+        const url = buildShareUrl(currentTrack, tabForTrack)
+        window.history.replaceState({}, '', url)
+    }, [currentTrack, currentTrackTab, activeTab])
 
     const currentTabItems = useMemo(() => {
         if (!vaniData || !activeTab) return []
@@ -244,6 +285,18 @@ const VaniPlayer = () => {
         const pos = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
         audioRef.current.currentTime = pos * audioRef.current.duration;
     };
+
+    const handleShare = async () => {
+        if (!currentTrack) return
+        const url = buildShareUrl(currentTrack, currentTrackTab || activeTab)
+        try {
+            await navigator.clipboard.writeText(url)
+            setShareNotice('Share link copied!')
+            setTimeout(() => setShareNotice(''), 2000)
+        } catch (e) {
+            window.prompt('Copy this link:', url)
+        }
+    }
 
     useEffect(() => {
         const audio = audioRef.current
@@ -387,9 +440,17 @@ const VaniPlayer = () => {
                             </div>
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '20px' }}>
                                 <button className="util-btn" onClick={changeSpeed}>{playbackRate}x</button>
+                                <button className="icon-btn" onClick={handleShare} title="Copy share link">
+                                    <Share2 size={26} />
+                                </button>
                                 <a href={resolveUrl(currentTrack)} target="_blank" rel="noreferrer" style={{ color: '#94a3b8' }}><Link2 size={28} /></a>
                             </div>
                         </div>
+                        {shareNotice && (
+                            <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginTop: '10px', textAlign: 'right' }}>
+                                {shareNotice}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
