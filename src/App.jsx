@@ -66,15 +66,24 @@ const resolveUrl = (track) => {
     return url
 }
 
-const buildShareUrl = (track, tab) => {
-    const base = `${window.location.origin}${window.location.pathname}`
-    const params = new URLSearchParams()
-    if (tab) params.set('tab', tab)
-    if (track?.title) params.set('title', String(track.title))
-    if (track?.Theme) params.set('theme', String(track.Theme))
-    if (track?.link) params.set('link', String(track.link))
-    const query = params.toString()
-    return query ? `${base}?${query}` : base
+const slugifyTitle = (title) => {
+    return String(title || '')
+        .toLowerCase()
+        .replace(/&/g, 'and')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+}
+
+const getBasePath = () => {
+    const basePath = import.meta.env.BASE_URL || '/'
+    return basePath.endsWith('/') ? basePath : `${basePath}/`
+}
+
+const buildShareUrl = (track) => {
+    const basePath = getBasePath()
+    const base = new URL(basePath, window.location.origin).toString()
+    const slug = track?.title ? slugifyTitle(track.title) : ''
+    return slug ? `${base}${encodeURIComponent(slug)}` : base
 }
 
 const VaniPlayer = () => {
@@ -121,8 +130,10 @@ const VaniPlayer = () => {
     // Load last progress (Local)
     useEffect(() => {
         if (!vaniData) return
-        const params = new URLSearchParams(window.location.search)
-        if (params.get('link') || params.get('title') || params.get('theme')) return
+        const basePath = getBasePath()
+        const path = window.location.pathname
+        const hasSlug = path.startsWith(basePath) && path.length > basePath.length
+        if (hasSlug) return
         try {
             const raw = localStorage.getItem(storageKey)
             if (!raw) return
@@ -189,22 +200,22 @@ const VaniPlayer = () => {
 
     useEffect(() => {
         if (!vaniData) return
-        const params = new URLSearchParams(window.location.search)
-        if (!params.size) return
-        const sharedTrack = {
-            title: params.get('title') || '',
-            Theme: params.get('theme') || '',
-            link: params.get('link') || ''
+        const basePath = getBasePath()
+        const rawPath = window.location.pathname
+        if (!rawPath.startsWith(basePath)) return
+        const slug = decodeURIComponent(rawPath.slice(basePath.length).replace(/^\/+|\/+$/g, ''))
+        if (!slug) return
+        const allTabs = Object.keys(vaniData)
+        for (const tab of allTabs) {
+            const items = vaniData[tab] || []
+            const found = items.find(item => slugifyTitle(item.title) === slug)
+            if (found) {
+                setActiveTab(tab)
+                setCurrentTrack(found)
+                setCurrentTrackTab(tab)
+                return
+            }
         }
-        const tab = params.get('tab') || ''
-        const resolved = findTrackInData(vaniData, sharedTrack)
-        if (resolved?.track) {
-            setActiveTab(resolved.tab || tab || Object.keys(vaniData)[0] || '')
-            setCurrentTrack(resolved.track)
-            setCurrentTrackTab(resolved.tab || tab || '')
-            return
-        }
-        if (tab && vaniData[tab]) setActiveTab(tab)
     }, [vaniData])
 
     useEffect(() => { if (listRef.current) listRef.current.scrollTop = 0; }, [activeTab, search])
@@ -222,8 +233,7 @@ const VaniPlayer = () => {
 
     useEffect(() => {
         if (!currentTrack) return
-        const tabForTrack = currentTrackTab || activeTab
-        const url = buildShareUrl(currentTrack, tabForTrack)
+        const url = buildShareUrl(currentTrack)
         window.history.replaceState({}, '', url)
     }, [currentTrack, currentTrackTab, activeTab])
 
@@ -288,7 +298,7 @@ const VaniPlayer = () => {
 
     const handleShare = async () => {
         if (!currentTrack) return
-        const url = buildShareUrl(currentTrack, currentTrackTab || activeTab)
+        const url = buildShareUrl(currentTrack)
         try {
             await navigator.clipboard.writeText(url)
             setShareNotice('Share link copied!')
