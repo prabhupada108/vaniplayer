@@ -79,6 +79,18 @@ const getBasePath = () => {
     return basePath.endsWith('/') ? basePath : `${basePath}/`
 }
 
+const getSlugFromLocation = () => {
+    const basePath = getBasePath()
+    const path = window.location.pathname
+    if (path.startsWith(basePath) && path.length > basePath.length) {
+        const raw = path.slice(basePath.length).replace(/^\/+|\/+$/g, '')
+        if (raw) return decodeURIComponent(raw)
+    }
+    const params = new URLSearchParams(window.location.search)
+    const p = params.get('p')
+    return p ? decodeURIComponent(p) : ''
+}
+
 const buildShareUrl = (track) => {
     const basePath = getBasePath()
     const base = new URL(basePath, window.location.origin).toString()
@@ -130,10 +142,7 @@ const VaniPlayer = () => {
     // Load last progress (Local)
     useEffect(() => {
         if (!vaniData) return
-        const basePath = getBasePath()
-        const path = window.location.pathname
-        const hasSlug = path.startsWith(basePath) && path.length > basePath.length
-        if (hasSlug) return
+        if (getSlugFromLocation()) return
         try {
             const raw = localStorage.getItem(storageKey)
             if (!raw) return
@@ -200,10 +209,7 @@ const VaniPlayer = () => {
 
     useEffect(() => {
         if (!vaniData) return
-        const basePath = getBasePath()
-        const rawPath = window.location.pathname
-        if (!rawPath.startsWith(basePath)) return
-        const slug = decodeURIComponent(rawPath.slice(basePath.length).replace(/^\/+|\/+$/g, ''))
+        const slug = getSlugFromLocation()
         if (!slug) return
         const allTabs = Object.keys(vaniData)
         for (const tab of allTabs) {
