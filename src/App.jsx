@@ -144,6 +144,21 @@ const VaniPlayer = () => {
         ) || null
     }
 
+    const fetchTabData = React.useCallback(async (tabName) => {
+        const file = tabFiles[tabName]
+        if (!file) return null
+        try {
+            const res = await fetch(`data/tabs/${file}`)
+            if (!res.ok) throw new Error("Sync failed")
+            const data = await res.json()
+            setTabData(prev => (prev[tabName] ? prev : { ...prev, [tabName]: data }))
+            return data
+        } catch (err) {
+            setLoadError(err.message || "Sync failed")
+            return null
+        }
+    }, [tabFiles])
+
     // Load last progress (Local)
     useEffect(() => {
         if (!tabList.length) return
@@ -201,21 +216,6 @@ const VaniPlayer = () => {
         const interval = setInterval(saveState, 5000);
         return () => clearInterval(interval);
     }, [currentUser, currentTrack, activeTab, currentTrackTab])
-
-    const fetchTabData = React.useCallback(async (tabName) => {
-        const file = tabFiles[tabName]
-        if (!file) return null
-        try {
-            const res = await fetch(`data/tabs/${file}`)
-            if (!res.ok) throw new Error("Sync failed")
-            const data = await res.json()
-            setTabData(prev => (prev[tabName] ? prev : { ...prev, [tabName]: data }))
-            return data
-        } catch (err) {
-            setLoadError(err.message || "Sync failed")
-            return null
-        }
-    }, [tabFiles])
 
     useEffect(() => {
         fetch('data/tabs.json')
