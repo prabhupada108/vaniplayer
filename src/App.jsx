@@ -33,13 +33,10 @@ const TrackList = React.memo(function TrackList({
     currentTrack,
     isPlaying,
     onPlay,
-    paddingTop = 0,
-    paddingBottom = 0,
     artwork
 }) {
     return (
         <>
-            {paddingTop > 0 && <div aria-hidden="true" style={{ height: paddingTop }} />}
             {items.map((track, i) => (
                 <div key={track.link || `${track.title}-${i}`} className="song-card" onClick={() => onPlay(track, activeTab)}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '8px', overflow: 'hidden', marginRight: '16px', flexShrink: 0 }}>
@@ -54,7 +51,6 @@ const TrackList = React.memo(function TrackList({
                     </div>
                 </div>
             ))}
-            {paddingBottom > 0 && <div aria-hidden="true" style={{ height: paddingBottom }} />}
         </>
     )
 })
@@ -110,7 +106,9 @@ const buildShareUrl = (track) => {
 }
 
 const VaniPlayer = () => {
-    const [vaniData, setVaniData] = useState(null)
+    const [tabList, setTabList] = useState([])
+    const [tabFiles, setTabFiles] = useState({})
+    const [tabData, setTabData] = useState({})
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(null)
 
@@ -135,25 +133,20 @@ const VaniPlayer = () => {
     const listRef = useRef(null)
     const progressRef = useRef(null)
     const lastProgressUpdateRef = useRef(0)
-    const scrollRafRef = useRef(0)
 
-    const findTrackInData = (data, savedTrack) => {
-        if (!data || !savedTrack) return null
+    const findTrackInList = (items, savedTrack) => {
+        if (!items || !savedTrack) return null
         const { link, title, Theme } = savedTrack
-        for (const tab of Object.keys(data)) {
-            const items = data[tab] || []
-            const found = items.find(item =>
-                (link && item.link === link) ||
-                (title && String(item.title) === String(title) && String(item.Theme) === String(Theme || ''))
-            )
-            if (found) return { track: found, tab }
-        }
-        return null
+        if (!items) return null
+        return items.find(item =>
+            (link && item.link === link) ||
+            (title && String(item.title) === String(title) && String(item.Theme) === String(Theme || ''))
+        ) || null
     }
 
     // Load last progress (Local)
     useEffect(() => {
-        if (!vaniData) return
+        if (!tabList.length) return
         if (getSlugFromLocation()) return
         try {
             const raw = localStorage.getItem(storageKey)
@@ -161,25 +154,26 @@ const VaniPlayer = () => {
             const saved = JSON.parse(raw)
             const { tab, time, track } = saved || {}
             if (tab) setActiveTab(tab)
-            const resolved = findTrackInData(vaniData, track)
-            if (resolved?.track) {
-                setCurrentTrack(resolved.track)
-                if (resolved.tab) {
-                    setActiveTab(resolved.tab)
-                    setCurrentTrackTab(resolved.tab)
-                }
+            if (!tab) return
+            const loadSaved = async () => {
+                const items = tabData[tab] || await fetchTabData(tab)
+                const found = findTrackInList(items, track)
+                if (!found) return
+                setCurrentTrack(found)
+                setCurrentTrackTab(tab)
                 setTimeout(() => {
                     if (audioRef.current) {
-                        audioRef.current.src = resolveUrl(resolved.track)
+                        audioRef.current.src = resolveUrl(found)
                         audioRef.current.currentTime = time || 0
                         setCurrentTime(time || 0)
                     }
                 }, 300)
             }
+            loadSaved()
         } catch (e) {
             // Ignore corrupted local storage
         }
-    }, [vaniData])
+    }, [tabList, tabData, fetchTabData])
 
     // Auto-Save Progress (Local)
     useEffect(() => {
@@ -208,33 +202,66 @@ const VaniPlayer = () => {
         return () => clearInterval(interval);
     }, [currentUser, currentTrack, activeTab, currentTrackTab])
 
+    const fetchTabData = React.useCallback(async (tabName) => {
+        const file = tabFiles[tabName]
+        if (!file) return null
+        try {
+            const res = await fetch(`data/tabs/${file}`)
+            if (!res.ok) throw new Error("Sync failed")
+            const data = await res.json()
+            setTabData(prev => (prev[tabName] ? prev : { ...prev, [tabName]: data }))
+            return data
+        } catch (err) {
+            setLoadError(err.message || "Sync failed")
+            return null
+        }
+    }, [tabFiles])
+
     useEffect(() => {
-        fetch('data/vani_data.json')
+        fetch('data/tabs.json')
             .then(res => { if (!res.ok) throw new Error("Sync failed"); return res.json(); })
-            .then(data => {
-                setVaniData(data);
-                if (Object.keys(data)[0]) setActiveTab(Object.keys(data)[0]);
-                setLoading(false);
+            .then(payload => {
+                const tabs = payload?.tabs || []
+                const fileMap = {}
+                tabs.forEach(t => { if (t?.name && t?.file) fileMap[t.name] = t.file })
+                setTabList(tabs)
+                setTabFiles(fileMap)
+                if (tabs[0]?.name) setActiveTab(tabs[0].name)
             })
             .catch(err => { setLoadError(err.message); setLoading(false); });
     }, [])
 
     useEffect(() => {
-        if (!vaniData) return
+        if (!activeTab) return
+        if (tabData[activeTab]) { setLoading(false); return }
+        fetchTabData(activeTab).then(() => setLoading(false))
+    }, [activeTab, tabData, fetchTabData])
+
+    useEffect(() => {
+        if (!tabList.length) return
         const slug = getSlugFromLocation()
         if (!slug) return
-        const allTabs = Object.keys(vaniData)
-        for (const tab of allTabs) {
-            const items = vaniData[tab] || []
-            const found = items.find(item => slugifyTitle(item.title) === slug)
-            if (found) {
-                setActiveTab(tab)
-                setCurrentTrack(found)
-                setCurrentTrackTab(tab)
-                return
+        const loadBySlug = async () => {
+            try {
+                const res = await fetch('data/slug_index.json')
+                if (!res.ok) throw new Error("Sync failed")
+                const index = await res.json()
+                const entry = index?.[slug]
+                if (!entry?.tab) return
+                setActiveTab(entry.tab)
+                const items = tabData[entry.tab] || await fetchTabData(entry.tab)
+                if (!items) return
+                const found = items[entry.index] || items.find(item => slugifyTitle(item.title) === slug)
+                if (found) {
+                    setCurrentTrack(found)
+                    setCurrentTrackTab(entry.tab)
+                }
+            } catch (e) {
+                setLoadError("Sync failed")
             }
         }
-    }, [vaniData])
+        loadBySlug()
+    }, [tabList, tabData, fetchTabData])
 
     useEffect(() => {
         const handle = setTimeout(() => setDebouncedSearch(search), 150)
@@ -242,10 +269,9 @@ const VaniPlayer = () => {
     }, [search])
 
     useEffect(() => {
-        if (!currentTrack || currentTrackTab || !vaniData) return
-        const resolved = findTrackInData(vaniData, currentTrack)
-        if (resolved?.tab) setCurrentTrackTab(resolved.tab)
-    }, [currentTrack, currentTrackTab, vaniData])
+        if (!currentTrack || currentTrackTab) return
+        if (activeTab) setCurrentTrackTab(activeTab)
+    }, [currentTrack, currentTrackTab, activeTab])
 
     useEffect(() => {
         if (!currentTrack) return
@@ -254,13 +280,13 @@ const VaniPlayer = () => {
     }, [currentTrack, currentTrackTab, activeTab])
 
     const currentTabItems = useMemo(() => {
-        if (!vaniData || !activeTab) return []
-        const items = vaniData[activeTab] || []
+        if (!activeTab) return []
+        const items = tabData[activeTab] || []
         if (activeTab !== 'HHBRSM') return items
         return items
             .slice()
             .sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), undefined, { sensitivity: 'base' }))
-    }, [vaniData, activeTab])
+    }, [tabData, activeTab])
     const filteredData = useMemo(() => {
         const kw = debouncedSearch.toLowerCase()
         return currentTabItems.filter(item =>
@@ -268,48 +294,16 @@ const VaniPlayer = () => {
         )
     }, [debouncedSearch, currentTabItems])
 
-    const [scrollTop, setScrollTop] = useState(0)
-    const [viewportHeight, setViewportHeight] = useState(0)
-    const ITEM_HEIGHT = 72
-    const ITEM_GAP = 10
-    const ITEM_SPAN = ITEM_HEIGHT + ITEM_GAP
-    const OVERSCAN = 8
-
-    useEffect(() => {
-        const measure = () => {
-            if (!listRef.current) return
-            setViewportHeight(listRef.current.clientHeight || 0)
-        }
-        measure()
-        window.addEventListener('resize', measure)
-        return () => window.removeEventListener('resize', measure)
-    }, [])
-
-    const handleScroll = (e) => {
-        const top = e.currentTarget.scrollTop
-        if (scrollRafRef.current) return
-        scrollRafRef.current = requestAnimationFrame(() => {
-            setScrollTop(top)
-            scrollRafRef.current = 0
-        })
-    }
-
-    const listMeta = useMemo(() => {
-        const total = filteredData.length
-        const safeViewport = Math.max(1, viewportHeight)
-        const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_SPAN) - OVERSCAN)
-        const endIndex = Math.min(total, Math.ceil((scrollTop + safeViewport) / ITEM_SPAN) + OVERSCAN)
-        const items = filteredData.slice(startIndex, endIndex)
-        const paddingTop = startIndex * ITEM_SPAN
-        const paddingBottom = Math.max(0, (total - endIndex) * ITEM_SPAN)
-        return { items, paddingTop, paddingBottom }
-    }, [filteredData, scrollTop, viewportHeight])
-
     const activeTabArtwork = useMemo(() => getArtworkForTab(activeTab), [activeTab])
+
+    const PAGE_SIZE = 40
+    const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+    const visibleItems = useMemo(() => filteredData.slice(0, visibleCount), [filteredData, visibleCount])
+    const canLoadMore = visibleCount < filteredData.length
 
     useEffect(() => {
         if (listRef.current) listRef.current.scrollTop = 0
-        setScrollTop(0)
+        setVisibleCount(PAGE_SIZE)
     }, [activeTab, search])
 
     const handlePlay = React.useCallback(async (track, trackTab) => {
@@ -429,28 +423,28 @@ const VaniPlayer = () => {
                     <input className="search-input" placeholder="Search teachings..." value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
                 <div className="tab-row">
-                    {Object.keys(vaniData).map(tab => (
-                        <button key={tab} className={`tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>{tab}</button>
+                    {tabList.map(t => (
+                        <button key={t.name} className={`tab-btn ${activeTab === t.name ? 'active' : ''}`} onClick={() => setActiveTab(t.name)}>{t.name}</button>
                     ))}
                 </div>
             </header>
 
-            <main
-                ref={listRef}
-                className="song-grid"
-                onScroll={handleScroll}
-                style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}
-            >
+            <main ref={listRef} className="song-grid" style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}>
                 <TrackList
-                    items={listMeta.items}
+                    items={visibleItems}
                     activeTab={activeTab}
                     currentTrack={currentTrack}
                     isPlaying={isPlaying}
                     onPlay={handlePlay}
-                    paddingTop={listMeta.paddingTop}
-                    paddingBottom={listMeta.paddingBottom}
                     artwork={activeTabArtwork}
                 />
+                {canLoadMore && (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 30px' }}>
+                        <button className="primary-btn" onClick={() => setVisibleCount(c => Math.min(filteredData.length, c + PAGE_SIZE))}>
+                            Load more
+                        </button>
+                    </div>
+                )}
             </main>
 
             {currentTrack && !showDetail && (

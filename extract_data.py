@@ -3,12 +3,24 @@ import json
 import re
 import os
 
-def extract_all_sheets(file_path, output_path):
+def slugify_title(title):
+    value = str(title or '').lower()
+    value = value.replace('&', 'and')
+    value = re.sub(r'[^a-z0-9]+', '-', value)
+    value = re.sub(r'^-+|-+$', '', value)
+    return value
+
+def extract_all_sheets(file_path, output_dir):
     print(f"Reading {file_path}...")
     try:
         xl = pd.ExcelFile(file_path)
         all_data = {}
+        slug_index = {}
         base_url = "https://audio.iskcondesiretree.com/"
+
+        os.makedirs(output_dir, exist_ok=True)
+        tabs_dir = os.path.join(output_dir, "tabs")
+        os.makedirs(tabs_dir, exist_ok=True)
         
         for sheet_name in xl.sheet_names:
             print(f"Processing sheet: {sheet_name}")
@@ -116,13 +128,50 @@ def extract_all_sheets(file_path, output_path):
                 })
 
             all_data[sheet_name] = processed_records
-            
-        with open(output_path, 'w', encoding='utf-8') as f:
+
+        # Write per-tab files and index
+        tabs = []
+        used_files = set()
+        for sheet_name, records in all_data.items():
+            file_slug = slugify_title(sheet_name) or "tab"
+            filename = f"{file_slug}.json"
+            if filename in used_files:
+                suffix = 2
+                while f"{file_slug}-{suffix}.json" in used_files:
+                    suffix += 1
+                filename = f"{file_slug}-{suffix}.json"
+            used_files.add(filename)
+
+            with open(os.path.join(tabs_dir, filename), 'w', encoding='utf-8') as f:
+                json.dump(records, f, ensure_ascii=False, indent=2)
+
+            for idx, row in enumerate(records):
+                slug = slugify_title(row.get('title'))
+                if slug and slug not in slug_index:
+                    slug_index[slug] = {
+                        'tab': sheet_name,
+                        'file': filename,
+                        'index': idx
+                    }
+
+            tabs.append({
+                'name': sheet_name,
+                'file': filename
+            })
+
+        with open(os.path.join(output_dir, "tabs.json"), 'w', encoding='utf-8') as f:
+            json.dump({ "tabs": tabs }, f, ensure_ascii=False, indent=2)
+
+        with open(os.path.join(output_dir, "slug_index.json"), 'w', encoding='utf-8') as f:
+            json.dump(slug_index, f, ensure_ascii=False, indent=2)
+
+        # Optional full export (kept for reference)
+        with open(os.path.join(output_dir, "vani_data.json"), 'w', encoding='utf-8') as f:
             json.dump(all_data, f, ensure_ascii=False, indent=2)
             
-        print(f"Successfully extracted all sheets to {output_path}")
+        print(f"Successfully extracted all sheets to {output_dir}")
     except Exception as e:
         print(f"Error: {e}")
 
 if __name__ == "__main__":
-    extract_all_sheets("Srila Prabhupad Vani.xlsx", "vani_multi_data.json")
+    extract_all_sheets("Srila Prabhupad Vani.xlsx", os.path.join("public", "data"))
