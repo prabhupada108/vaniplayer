@@ -27,13 +27,23 @@ class ErrorBoundary extends React.Component {
     }
 }
 
-const TrackList = React.memo(function TrackList({ items, activeTab, currentTrack, isPlaying, onPlay }) {
+const TrackList = React.memo(function TrackList({
+    items,
+    activeTab,
+    currentTrack,
+    isPlaying,
+    onPlay,
+    paddingTop = 0,
+    paddingBottom = 0,
+    artwork
+}) {
     return (
         <>
+            {paddingTop > 0 && <div aria-hidden="true" style={{ height: paddingTop }} />}
             {items.map((track, i) => (
-                <div key={i} className="song-card" onClick={() => onPlay(track, activeTab)}>
+                <div key={track.link || `${track.title}-${i}`} className="song-card" onClick={() => onPlay(track, activeTab)}>
                     <div style={{ width: '48px', height: '48px', borderRadius: '8px', overflow: 'hidden', marginRight: '16px', flexShrink: 0 }}>
-                        <img src={getArtworkForTab(activeTab)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Art" />
+                        <img src={artwork} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Art" loading="lazy" />
                     </div>
                     <div className="song-info">
                         <div className="song-title" style={{ color: currentTrack === track ? '#fbbf24' : 'white' }}>{String(track.title)}</div>
@@ -44,6 +54,7 @@ const TrackList = React.memo(function TrackList({ items, activeTab, currentTrack
                     </div>
                 </div>
             ))}
+            {paddingBottom > 0 && <div aria-hidden="true" style={{ height: paddingBottom }} />}
         </>
     )
 })
@@ -124,6 +135,7 @@ const VaniPlayer = () => {
     const listRef = useRef(null)
     const progressRef = useRef(null)
     const lastProgressUpdateRef = useRef(0)
+    const scrollRafRef = useRef(0)
 
     const findTrackInData = (data, savedTrack) => {
         if (!data || !savedTrack) return null
@@ -224,8 +236,6 @@ const VaniPlayer = () => {
         }
     }, [vaniData])
 
-    useEffect(() => { if (listRef.current) listRef.current.scrollTop = 0; }, [activeTab, search])
-
     useEffect(() => {
         const handle = setTimeout(() => setDebouncedSearch(search), 150)
         return () => clearTimeout(handle)
@@ -257,6 +267,50 @@ const VaniPlayer = () => {
             String(item.title).toLowerCase().includes(kw) || String(item.Theme).toLowerCase().includes(kw)
         )
     }, [debouncedSearch, currentTabItems])
+
+    const [scrollTop, setScrollTop] = useState(0)
+    const [viewportHeight, setViewportHeight] = useState(0)
+    const ITEM_HEIGHT = 72
+    const ITEM_GAP = 10
+    const ITEM_SPAN = ITEM_HEIGHT + ITEM_GAP
+    const OVERSCAN = 8
+
+    useEffect(() => {
+        const measure = () => {
+            if (!listRef.current) return
+            setViewportHeight(listRef.current.clientHeight || 0)
+        }
+        measure()
+        window.addEventListener('resize', measure)
+        return () => window.removeEventListener('resize', measure)
+    }, [])
+
+    const handleScroll = (e) => {
+        const top = e.currentTarget.scrollTop
+        if (scrollRafRef.current) return
+        scrollRafRef.current = requestAnimationFrame(() => {
+            setScrollTop(top)
+            scrollRafRef.current = 0
+        })
+    }
+
+    const listMeta = useMemo(() => {
+        const total = filteredData.length
+        const safeViewport = Math.max(1, viewportHeight)
+        const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_SPAN) - OVERSCAN)
+        const endIndex = Math.min(total, Math.ceil((scrollTop + safeViewport) / ITEM_SPAN) + OVERSCAN)
+        const items = filteredData.slice(startIndex, endIndex)
+        const paddingTop = startIndex * ITEM_SPAN
+        const paddingBottom = Math.max(0, (total - endIndex) * ITEM_SPAN)
+        return { items, paddingTop, paddingBottom }
+    }, [filteredData, scrollTop, viewportHeight])
+
+    const activeTabArtwork = useMemo(() => getArtworkForTab(activeTab), [activeTab])
+
+    useEffect(() => {
+        if (listRef.current) listRef.current.scrollTop = 0
+        setScrollTop(0)
+    }, [activeTab, search])
 
     const handlePlay = React.useCallback(async (track, trackTab) => {
         setPlaybackError(null);
@@ -381,13 +435,21 @@ const VaniPlayer = () => {
                 </div>
             </header>
 
-            <main ref={listRef} className="song-grid" style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}>
+            <main
+                ref={listRef}
+                className="song-grid"
+                onScroll={handleScroll}
+                style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}
+            >
                 <TrackList
-                    items={filteredData}
+                    items={listMeta.items}
                     activeTab={activeTab}
                     currentTrack={currentTrack}
                     isPlaying={isPlaying}
                     onPlay={handlePlay}
+                    paddingTop={listMeta.paddingTop}
+                    paddingBottom={listMeta.paddingBottom}
+                    artwork={activeTabArtwork}
                 />
             </main>
 
