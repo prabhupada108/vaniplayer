@@ -38,6 +38,7 @@ def extract_all_sheets(file_path, output_dir):
             records = normalized_records
 
             processed_records = []
+            title_counter = 0
             
             for row in records:
                 # Sanitization
@@ -121,8 +122,11 @@ def extract_all_sheets(file_path, output_dir):
                 # Title Cleanup
                 final_title = display_title.split('/').pop().replace('.mp3', '').replace('.MP3', '').replace('_', ' ')
                 
+                title_counter += 1
+                numbered_title = f"{title_counter}_{final_title}" if final_title else f"{title_counter}_"
+
                 processed_records.append({
-                    'title': final_title,
+                    'title': numbered_title,
                     'Theme': category,
                     'link': url
                 })
