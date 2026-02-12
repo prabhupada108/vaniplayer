@@ -2,13 +2,14 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
     Search, Play, Pause, ChevronLeft, ChevronRight,
     X, Shuffle, RotateCcw, RotateCw,
-    MoreHorizontal, AlertCircle, Loader2, Link2, Info, Share2
+    MoreHorizontal, AlertCircle, Loader2, Link2, Info, Share2, LogOut
 } from 'lucide-react'
 import prabhupadaImg from './assets/prabhupada.png'
 import rnsmImg from './assets/rnsm.png'
 import hhbrsmImg from './assets/hhbrsm.png'
 import vaishnavaSongImg from './assets/vaishnavasong.png'
 import rspImg from './assets/RSP.jpeg'
+import LoginScreen from './LoginScreen.jsx'
 
 class ErrorBoundary extends React.Component {
     constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -106,13 +107,19 @@ const buildShareUrl = (track) => {
 }
 
 const VaniPlayer = () => {
+    const [currentUser, setCurrentUser] = useState(() => {
+        try {
+            return localStorage.getItem('vani_current_user') || null
+        } catch (e) {
+            return null
+        }
+    })
+
     const [tabList, setTabList] = useState([])
     const [tabFiles, setTabFiles] = useState({})
     const [tabData, setTabData] = useState({})
     const [loading, setLoading] = useState(true)
     const [loadError, setLoadError] = useState(null)
-
-    const currentUser = 'default'
 
     const [activeTab, setActiveTab] = useState('')
     const [search, setSearch] = useState('')
@@ -127,12 +134,37 @@ const VaniPlayer = () => {
     const [showDetail, setShowDetail] = useState(false)
     const [playbackError, setPlaybackError] = useState(null)
     const [shareNotice, setShareNotice] = useState('')
-    const storageKey = 'vani_progress'
+
+    const storageKey = currentUser ? `vani_progress_${currentUser}` : 'vani_progress'
 
     const audioRef = useRef(new Audio())
     const listRef = useRef(null)
     const progressRef = useRef(null)
     const lastProgressUpdateRef = useRef(0)
+
+    const handleLogin = (userId) => {
+        setCurrentUser(userId)
+        try {
+            localStorage.setItem('vani_current_user', userId)
+        } catch (e) {
+            // Ignore storage failures
+        }
+    }
+
+    const handleLogout = () => {
+        if (audioRef.current) {
+            audioRef.current.pause()
+        }
+        setCurrentUser(null)
+        setCurrentTrack(null)
+        setIsPlaying(false)
+        setShowDetail(false)
+        try {
+            localStorage.removeItem('vani_current_user')
+        } catch (e) {
+            // Ignore storage failures
+        }
+    }
 
     const findTrackInList = (items, savedTrack) => {
         if (!items || !savedTrack) return null
@@ -387,6 +419,10 @@ const VaniPlayer = () => {
         }
     }, [isPlaying])
 
+    if (!currentUser) {
+        return <LoginScreen onLogin={handleLogin} />
+    }
+
     if (loading) return (
         <div className="loading-screen">
             <Loader2 size={48} className="animate-spin loading-icon" />
@@ -397,7 +433,7 @@ const VaniPlayer = () => {
     if (loadError) return (
         <div className="loading-screen">
             <AlertCircle size={48} className="error-icon" />
-            <h2 className="loading-title">Couldn’t sync the archive</h2>
+            <h2 className="loading-title">Couldn't sync the archive</h2>
             <p className="error-text">{String(loadError)}</p>
             <button className="primary-btn" onClick={() => window.location.reload()}>Try Again</button>
         </div>
@@ -410,7 +446,35 @@ const VaniPlayer = () => {
                 <div className="hero-strip">
                     <div className="hero-overlay" />
                     <div className="hero-content">
-                        <h1 className="brand-title">Vani Player</h1>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <div style={{ flex: 1 }} />
+                            <div style={{ flex: 1, textAlign: 'center' }}>
+                                <h1 className="brand-title">Vani Player</h1>
+                            </div>
+                            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={handleLogout}
+                                    style={{
+                                        background: 'rgba(255, 255, 255, 0.1)',
+                                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                                        borderRadius: '12px',
+                                        padding: '8px 14px',
+                                        color: '#f5f5f7',
+                                        fontSize: '0.75rem',
+                                        fontWeight: '700',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                    title={`Logged in as ${currentUser}`}
+                                >
+                                    <LogOut size={14} />
+                                    <span style={{ display: 'none' }} className="show-on-desktop">{currentUser}</span>
+                                </button>
+                            </div>
+                        </div>
                         <p className="brand-tagline">DIVINE INSTRUCTION PORTAL</p>
                     </div>
                 </div>

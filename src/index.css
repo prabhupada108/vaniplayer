@@ -512,6 +512,11 @@ body {
   }
 }
 
+/* Show username on desktop */
+.show-on-desktop {
+  display: inline !important;
+}
+
 /* Mobile Tweaks within the Unified Layout */
 @media (max-width: 600px) {
   .hero-strip {
@@ -543,6 +548,11 @@ body {
   /* On very small screens, hide extra icons to save space */
   .hide-mobile {
     display: none;
+  }
+
+  /* Hide username on mobile, show only icon */
+  .show-on-desktop {
+    display: none !important;
   }
 }
   .quote-banner {
