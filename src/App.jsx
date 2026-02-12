@@ -220,7 +220,7 @@ const VaniPlayer = () => {
         } catch (e) {
             // Ignore corrupted local storage
         }
-    }, [tabList, tabData, fetchTabData])
+    }, [tabList, tabData, fetchTabData, storageKey])
 
     // Auto-Save Progress (Local)
     useEffect(() => {
