@@ -12,7 +12,7 @@
 // 6. Click Deploy > New deployment
 // 7. Select type: "Web app"
 // 8. Set "Execute as": Me
-// 9. Set "Who has access": Anyone
+// 9. Set "Who has access": Anyone (or Anyone with Google account)
 // 10. Click Deploy, authorize when prompted
 // 11. Copy the Web App URL
 // 12. Paste the URL into src/cloudSync.js (SYNC_URL constant)
@@ -34,7 +34,13 @@ function getSheet() {
   return sheet
 }
 
-function jsonResponse(data) {
+// Returns JSONP if callback param exists, otherwise plain JSON
+function respond(data, callback) {
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + '(' + JSON.stringify(data) + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT)
+  }
   return ContentService
     .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON)
@@ -46,11 +52,12 @@ function doGet(e) {
 
   try {
     var action = e.parameter.action
+    var callback = e.parameter.callback
     var sheet = getSheet()
 
     if (action === 'load') {
       var userId = e.parameter.userId
-      if (!userId) return jsonResponse({ success: false, error: 'Missing userId' })
+      if (!userId) return respond({ success: false, error: 'Missing userId' }, callback)
 
       var data = sheet.getDataRange().getValues()
       var headers = data[0]
@@ -59,17 +66,16 @@ function doGet(e) {
         if (String(data[i][0]) === String(userId)) {
           var row = {}
           headers.forEach(function (h, j) { row[h] = data[i][j] })
-          // Parse completedTracks JSON string back to array
           if (row.completedTracks) {
             try { row.completedTracks = JSON.parse(row.completedTracks) }
             catch (err) { row.completedTracks = [] }
           } else {
             row.completedTracks = []
           }
-          return jsonResponse({ success: true, data: row })
+          return respond({ success: true, data: row }, callback)
         }
       }
-      return jsonResponse({ success: true, data: null })
+      return respond({ success: true, data: null }, callback)
     }
 
     if (action === 'users') {
@@ -79,15 +85,28 @@ function doGet(e) {
         var u = String(data[i][0]).trim()
         if (u) users.push(u)
       }
-      return jsonResponse({ success: true, users: users })
+      return respond({ success: true, users: users }, callback)
     }
 
     if (action === 'save') {
-      var payload = JSON.parse(e.parameter.data)
+      // Read fields directly from URL params (avoids long encoded JSON)
+      var payload = {
+        userId: e.parameter.userId,
+        tab: e.parameter.tab || '',
+        trackTitle: e.parameter.trackTitle || '',
+        trackTheme: e.parameter.trackTheme || '',
+        trackLink: e.parameter.trackLink || '',
+        time: Number(e.parameter.time) || 0,
+        completedTracks: []
+      }
+      if (e.parameter.completedTracks) {
+        try { payload.completedTracks = JSON.parse(e.parameter.completedTracks) }
+        catch (err) { payload.completedTracks = [] }
+      }
       return saveToSheet(sheet, payload)
     }
 
-    return jsonResponse({ success: false, error: 'Unknown action' })
+    return respond({ success: false, error: 'Unknown action' }, callback)
   } finally {
     lock.releaseLock()
   }
@@ -95,13 +114,13 @@ function doGet(e) {
 
 function saveToSheet(sheet, payload) {
   var userId = payload.userId
-  if (!userId) return jsonResponse({ success: false, error: 'Missing userId' })
+  if (!userId) return respond({ success: false, error: 'Missing userId' })
 
   var data = sheet.getDataRange().getValues()
   var rowIndex = -1
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(userId)) {
-      rowIndex = i + 1 // Sheets are 1-indexed
+      rowIndex = i + 1
       break
     }
   }
@@ -125,7 +144,7 @@ function saveToSheet(sheet, payload) {
     sheet.appendRow(row)
   }
 
-  return jsonResponse({ success: true })
+  return respond({ success: true })
 }
 
 function doPost(e) {
