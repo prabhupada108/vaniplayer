@@ -10,6 +10,7 @@ import hhbrsmImg from './assets/hhbrsm.png'
 import vaishnavaSongImg from './assets/vaishnavasong.png'
 import rspImg from './assets/RSP.jpeg'
 import LoginScreen from './LoginScreen.jsx'
+import { isCloudEnabled, cloudLoad, cloudSave, cloudSaveBeacon, cloudLoadUsers } from './cloudSync.js'
 
 class ErrorBoundary extends React.Component {
     constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -34,24 +35,38 @@ const TrackList = React.memo(function TrackList({
     currentTrack,
     isPlaying,
     onPlay,
-    artwork
+    artwork,
+    completedTracks
 }) {
     return (
         <>
-            {items.map((track, i) => (
-                <div key={track.link || `${track.title}-${i}`} className="song-card" onClick={() => onPlay(track, activeTab)}>
-                    <div style={{ width: '48px', height: '48px', borderRadius: '8px', overflow: 'hidden', marginRight: '16px', flexShrink: 0 }}>
-                        <img src={artwork} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Art" loading="lazy" />
+            {items.map((track, i) => {
+                const isCompleted = completedTracks.has(getTrackId(track))
+                return (
+                    <div key={track.link || `${track.title}-${i}`} className="song-card" onClick={() => onPlay(track, activeTab)}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '8px', overflow: 'hidden', marginRight: '16px', flexShrink: 0, position: 'relative' }}>
+                            <img src={artwork} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Art" loading="lazy" />
+                            {isCompleted && (
+                                <div style={{ position: 'absolute', inset: 0, background: 'rgba(74, 222, 128, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#4ade80', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <span style={{ color: '#0b0b0c', fontSize: '12px', fontWeight: 900, lineHeight: 1 }}>{'\u2713'}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className="song-info">
+                            <div className="song-title" style={{ color: currentTrack === track ? '#fbbf24' : isCompleted ? '#4ade80' : 'white' }}>{String(track.title)}</div>
+                            <div className="song-meta">
+                                {String(track.Theme || activeTab).substring(0, 100)}
+                                {isCompleted && <span style={{ color: '#4ade80', marginLeft: '8px', fontSize: '0.65rem', fontWeight: 700 }}>Listened</span>}
+                            </div>
+                        </div>
+                        <div>
+                            {currentTrack === track && isPlaying ? <Pause size={20} fill="#fbbf24" stroke="none" /> : <Play size={20} style={isCompleted ? { color: '#4ade80' } : undefined} />}
+                        </div>
                     </div>
-                    <div className="song-info">
-                        <div className="song-title" style={{ color: currentTrack === track ? '#fbbf24' : 'white' }}>{String(track.title)}</div>
-                        <div className="song-meta">{String(track.Theme || activeTab).substring(0, 100)}</div>
-                    </div>
-                    <div>
-                        {currentTrack === track && isPlaying ? <Pause size={20} fill="#fbbf24" stroke="none" /> : <Play size={20} />}
-                    </div>
-                </div>
-            ))}
+                )
+            })}
         </>
     )
 })
@@ -106,6 +121,8 @@ const buildShareUrl = (track) => {
     return slug ? `${base}${encodeURIComponent(slug)}` : base
 }
 
+const getTrackId = (track) => track?.link || `${track?.title}|${track?.Theme || ''}`
+
 const VaniPlayer = () => {
     const [currentUser, setCurrentUser] = useState(() => {
         try {
@@ -136,16 +153,34 @@ const VaniPlayer = () => {
     const [shareNotice, setShareNotice] = useState('')
 
     const storageKey = currentUser ? `vani_progress_${currentUser}` : 'vani_progress'
+    const completedKey = currentUser ? `vani_completed_${currentUser}` : 'vani_completed'
 
     const audioRef = useRef(new Audio())
     const listRef = useRef(null)
     const progressRef = useRef(null)
     const lastProgressUpdateRef = useRef(0)
+    const lastRestoredKeyRef = useRef('')
+    const lastCloudSaveRef = useRef(0)
+    const cloudSyncedRef = useRef('')
+    const completedTracksRef = useRef(new Set())
+
+    const [completedTracks, setCompletedTracks] = useState(new Set())
+
+    // Keep ref in sync for use in beforeunload/beacon (avoids stale closures)
+    useEffect(() => { completedTracksRef.current = completedTracks }, [completedTracks])
 
     const handleLogin = (userId) => {
         setCurrentUser(userId)
+        lastRestoredKeyRef.current = ''
+        cloudSyncedRef.current = ''
         try {
             localStorage.setItem('vani_current_user', userId)
+            const raw = localStorage.getItem('vani_users')
+            const users = raw ? JSON.parse(raw) : []
+            if (!users.includes(userId)) {
+                users.push(userId)
+                localStorage.setItem('vani_users', JSON.stringify(users))
+            }
         } catch (e) {
             // Ignore storage failures
         }
@@ -176,6 +211,64 @@ const VaniPlayer = () => {
         ) || null
     }
 
+    // Load completed tracks when user changes
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(completedKey)
+            setCompletedTracks(raw ? new Set(JSON.parse(raw)) : new Set())
+        } catch (e) {
+            setCompletedTracks(new Set())
+        }
+    }, [completedKey])
+
+    const markCompleted = React.useCallback((track) => {
+        if (!track) return
+        const id = getTrackId(track)
+        setCompletedTracks(prev => {
+            const next = new Set(prev)
+            next.add(id)
+            try {
+                localStorage.setItem(completedKey, JSON.stringify([...next]))
+            } catch (e) {}
+            return next
+        })
+    }, [completedKey])
+
+    const saveProgressNow = React.useCallback((forceCloud = false) => {
+        if (!currentUser || !currentTrack) return
+        const tabForTrack = currentTrackTab || activeTab
+        const state = {
+            tab: tabForTrack,
+            track: {
+                title: currentTrack.title,
+                Theme: currentTrack.Theme,
+                link: currentTrack.link
+            },
+            time: audioRef.current ? audioRef.current.currentTime : 0,
+            lastPlayed: Date.now()
+        }
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(state))
+        } catch (e) {}
+
+        // Cloud sync (debounced: every 30s unless forced)
+        if (isCloudEnabled()) {
+            const now = Date.now()
+            if (forceCloud || now - lastCloudSaveRef.current > 30000) {
+                lastCloudSaveRef.current = now
+                cloudSave({
+                    userId: currentUser,
+                    tab: tabForTrack,
+                    trackTitle: currentTrack.title,
+                    trackTheme: currentTrack.Theme,
+                    trackLink: currentTrack.link,
+                    time: audioRef.current ? audioRef.current.currentTime : 0,
+                    completedTracks: [...completedTracksRef.current]
+                })
+            }
+        }
+    }, [currentUser, currentTrack, activeTab, currentTrackTab, storageKey])
+
     const fetchTabData = React.useCallback(async (tabName) => {
         const file = tabFiles[tabName]
         if (!file) return null
@@ -193,19 +286,21 @@ const VaniPlayer = () => {
 
     // Load last progress (Local)
     useEffect(() => {
+        if (lastRestoredKeyRef.current === storageKey) return
         if (!tabList.length) return
-        if (getSlugFromLocation()) return
+        if (getSlugFromLocation()) { lastRestoredKeyRef.current = storageKey; return }
         try {
             const raw = localStorage.getItem(storageKey)
-            if (!raw) return
+            if (!raw) { lastRestoredKeyRef.current = storageKey; return }
             const saved = JSON.parse(raw)
             const { tab, time, track } = saved || {}
-            if (tab) setActiveTab(tab)
-            if (!tab) return
+            if (!tab) { lastRestoredKeyRef.current = storageKey; return }
+            setActiveTab(tab)
             const loadSaved = async () => {
                 const items = tabData[tab] || await fetchTabData(tab)
                 const found = findTrackInList(items, track)
                 if (!found) return
+                lastRestoredKeyRef.current = storageKey
                 setCurrentTrack(found)
                 setCurrentTrackTab(tab)
                 setTimeout(() => {
@@ -218,36 +313,105 @@ const VaniPlayer = () => {
             }
             loadSaved()
         } catch (e) {
-            // Ignore corrupted local storage
+            lastRestoredKeyRef.current = storageKey
         }
     }, [tabList, tabData, fetchTabData, storageKey])
 
-    // Auto-Save Progress (Local)
+    // Cloud sync — runs once per login, merges cloud with local
+    useEffect(() => {
+        if (!currentUser || !tabList.length) return
+        if (cloudSyncedRef.current === currentUser) return
+        if (!isCloudEnabled()) { cloudSyncedRef.current = currentUser; return }
+
+        cloudSyncedRef.current = currentUser
+        const syncFromCloud = async () => {
+            const cloudData = await cloudLoad(currentUser)
+            if (!cloudData) return
+
+            // Merge completed tracks (union of local + cloud)
+            if (cloudData.completedTracks?.length) {
+                setCompletedTracks(prev => {
+                    const merged = new Set([...prev, ...cloudData.completedTracks])
+                    try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch (e) {}
+                    return merged
+                })
+            }
+
+            // Compare timestamps — use whichever session is more recent
+            let localTime = 0
+            try {
+                const localRaw = localStorage.getItem(storageKey)
+                if (localRaw) localTime = JSON.parse(localRaw)?.lastPlayed || 0
+            } catch (e) {}
+
+            const cloudTime = cloudData.lastPlayed ? new Date(cloudData.lastPlayed).getTime() : 0
+
+            if (cloudTime > localTime && cloudData.trackLink) {
+                // Cloud is more recent — restore from cloud
+                setActiveTab(cloudData.tab)
+                const items = tabData[cloudData.tab] || await fetchTabData(cloudData.tab)
+                if (!items) return
+                const cloudTrack = { title: cloudData.trackTitle, Theme: cloudData.trackTheme, link: cloudData.trackLink }
+                const found = findTrackInList(items, cloudTrack)
+                if (found) {
+                    lastRestoredKeyRef.current = storageKey
+                    setCurrentTrack(found)
+                    setCurrentTrackTab(cloudData.tab)
+                    setTimeout(() => {
+                        if (audioRef.current) {
+                            audioRef.current.src = resolveUrl(found)
+                            audioRef.current.currentTime = Number(cloudData.time) || 0
+                            setCurrentTime(Number(cloudData.time) || 0)
+                        }
+                    }, 500)
+                    // Also update localStorage with the cloud data
+                    try {
+                        localStorage.setItem(storageKey, JSON.stringify({
+                            tab: cloudData.tab,
+                            track: cloudTrack,
+                            time: Number(cloudData.time) || 0,
+                            lastPlayed: cloudTime
+                        }))
+                    } catch (e) {}
+                }
+            }
+        }
+        syncFromCloud()
+    }, [currentUser, tabList, tabData, fetchTabData, storageKey, completedKey])
+
+    // Auto-Save Progress (Local) — every 3s + on page hide/close
     useEffect(() => {
         if (!currentUser || !currentTrack) return;
-
-        const saveState = () => {
-            const tabForTrack = currentTrackTab || activeTab
-            const state = {
-                tab: tabForTrack,
-                track: {
-                    title: currentTrack.title,
-                    Theme: currentTrack.Theme,
-                    link: currentTrack.link
-                },
-                time: audioRef.current ? audioRef.current.currentTime : 0,
-                lastPlayed: Date.now()
-            };
-            try {
-                localStorage.setItem(storageKey, JSON.stringify(state))
-            } catch (e) {
-                // Ignore storage failures
-            }
-        };
-
-        const interval = setInterval(saveState, 5000);
+        const interval = setInterval(saveProgressNow, 3000);
         return () => clearInterval(interval);
-    }, [currentUser, currentTrack, activeTab, currentTrackTab])
+    }, [currentUser, currentTrack, saveProgressNow])
+
+    useEffect(() => {
+        const handleVisibility = () => {
+            if (document.visibilityState === 'hidden') saveProgressNow(true)
+        }
+        const handleBeforeUnload = () => {
+            saveProgressNow() // localStorage (fast)
+            // Cloud save via beacon (survives page close)
+            if (isCloudEnabled() && currentUser && currentTrack) {
+                cloudSaveBeacon({
+                    userId: currentUser,
+                    tab: currentTrackTab || activeTab,
+                    trackTitle: currentTrack.title,
+                    trackTheme: currentTrack.Theme,
+                    trackLink: currentTrack.link,
+                    time: audioRef.current ? audioRef.current.currentTime : 0,
+                    completedTracks: [...completedTracksRef.current]
+                })
+            }
+        }
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        document.addEventListener('visibilitychange', handleVisibility)
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload)
+            document.removeEventListener('visibilitychange', handleVisibility)
+        }
+    }, [saveProgressNow, currentUser, currentTrack, activeTab, currentTrackTab])
 
     useEffect(() => {
         fetch('data/tabs.json')
@@ -343,10 +507,11 @@ const VaniPlayer = () => {
         const resolved = resolveUrl(track);
         if (currentTrack === track) {
             if (trackTab && trackTab !== currentTrackTab) setCurrentTrackTab(trackTab);
-            if (isPlaying) { audioRef.current.pause(); setIsPlaying(false); }
+            if (isPlaying) { audioRef.current.pause(); setIsPlaying(false); saveProgressNow(true); }
             else { audioRef.current.play(); setIsPlaying(true); }
             return;
         }
+        saveProgressNow(true);
         setCurrentTrack(track);
         if (trackTab) setCurrentTrackTab(trackTab);
         audioRef.current.src = resolved;
@@ -365,7 +530,7 @@ const VaniPlayer = () => {
             }
             setPlaybackError("Link unavailable.");
         }
-    }, [currentTrack, currentTrackTab, isPlaying, playbackRate])
+    }, [currentTrack, currentTrackTab, isPlaying, playbackRate, saveProgressNow])
 
     const skip = (s) => { if (audioRef.current.duration) audioRef.current.currentTime += s; }
     const changeSpeed = () => {
@@ -405,7 +570,11 @@ const VaniPlayer = () => {
             setDuration(audio.duration || 0)
         }
         const handleLoadedMetadata = () => update(true)
-        const handleEnded = () => setIsPlaying(false)
+        const handleEnded = () => {
+            setIsPlaying(false)
+            if (currentTrack) markCompleted(currentTrack)
+            saveProgressNow(true)
+        }
         const handleError = () => { if (isPlaying) setPlaybackError("Transmission interrupted."); setIsPlaying(false); }
         audio.addEventListener('timeupdate', update)
         audio.addEventListener('loadedmetadata', handleLoadedMetadata)
@@ -417,7 +586,7 @@ const VaniPlayer = () => {
             audio.removeEventListener('ended', handleEnded)
             audio.removeEventListener('error', handleError)
         }
-    }, [isPlaying])
+    }, [isPlaying, currentTrack, markCompleted, saveProgressNow])
 
     if (!currentUser) {
         return <LoginScreen onLogin={handleLogin} />
@@ -501,6 +670,7 @@ const VaniPlayer = () => {
                     isPlaying={isPlaying}
                     onPlay={handlePlay}
                     artwork={activeTabArtwork}
+                    completedTracks={completedTracks}
                 />
                 {canLoadMore && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 30px' }}>
