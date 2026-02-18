@@ -34,62 +34,52 @@ function getSheet() {
   return sheet
 }
 
-// Returns JSONP if callback param exists, otherwise plain JSON
-function respond(data, callback) {
-  if (callback) {
-    return ContentService
-      .createTextOutput(callback + '(' + JSON.stringify(data) + ')')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT)
-  }
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON)
-}
-
 function doGet(e) {
   var lock = LockService.getScriptLock()
   lock.tryLock(10000)
 
   try {
     var action = e.parameter.action
-    var callback = e.parameter.callback
+    var rid = e.parameter.rid || ''
     var sheet = getSheet()
+    var result = null
 
     if (action === 'load') {
       var userId = e.parameter.userId
-      if (!userId) return respond({ success: false, error: 'Missing userId' }, callback)
-
-      var data = sheet.getDataRange().getValues()
-      var headers = data[0]
-
-      for (var i = 1; i < data.length; i++) {
-        if (String(data[i][0]) === String(userId)) {
-          var row = {}
-          headers.forEach(function (h, j) { row[h] = data[i][j] })
-          if (row.completedTracks) {
-            try { row.completedTracks = JSON.parse(row.completedTracks) }
-            catch (err) { row.completedTracks = [] }
-          } else {
-            row.completedTracks = []
+      if (!userId) {
+        result = { success: false, error: 'Missing userId' }
+      } else {
+        var data = sheet.getDataRange().getValues()
+        var headers = data[0]
+        var found = false
+        for (var i = 1; i < data.length; i++) {
+          if (String(data[i][0]) === String(userId)) {
+            var row = {}
+            headers.forEach(function (h, j) { row[h] = data[i][j] })
+            if (row.completedTracks) {
+              try { row.completedTracks = JSON.parse(row.completedTracks) }
+              catch (err) { row.completedTracks = [] }
+            } else {
+              row.completedTracks = []
+            }
+            result = { success: true, data: row }
+            found = true
+            break
           }
-          return respond({ success: true, data: row }, callback)
         }
+        if (!found) result = { success: true, data: null }
       }
-      return respond({ success: true, data: null }, callback)
-    }
 
-    if (action === 'users') {
+    } else if (action === 'users') {
       var data = sheet.getDataRange().getValues()
       var users = []
       for (var i = 1; i < data.length; i++) {
         var u = String(data[i][0]).trim()
         if (u) users.push(u)
       }
-      return respond({ success: true, users: users }, callback)
-    }
+      result = { success: true, users: users }
 
-    if (action === 'save') {
-      // Read fields directly from URL params (avoids long encoded JSON)
+    } else if (action === 'save') {
       var payload = {
         userId: e.parameter.userId,
         tab: e.parameter.tab || '',
@@ -103,10 +93,21 @@ function doGet(e) {
         try { payload.completedTracks = JSON.parse(e.parameter.completedTracks) }
         catch (err) { payload.completedTracks = [] }
       }
-      return saveToSheet(sheet, payload)
+      result = saveToSheet(sheet, payload)
+
+    } else {
+      result = { success: false, error: 'Unknown action' }
     }
 
-    return respond({ success: false, error: 'Unknown action' }, callback)
+    // Always return HTML with postMessage (works from iframes, no CORS)
+    var payload = JSON.stringify({ _rid: rid, result: result })
+    var html = '<html><body><script>'
+      + 'try{window.top.postMessage(' + payload + ',"*")}'
+      + 'catch(e){try{window.parent.postMessage(' + payload + ',"*")}catch(e2){}}'
+      + '</script></body></html>'
+    return HtmlService.createHtmlOutput(html)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+
   } finally {
     lock.releaseLock()
   }
@@ -114,7 +115,7 @@ function doGet(e) {
 
 function saveToSheet(sheet, payload) {
   var userId = payload.userId
-  if (!userId) return respond({ success: false, error: 'Missing userId' })
+  if (!userId) return { success: false, error: 'Missing userId' }
 
   var data = sheet.getDataRange().getValues()
   var rowIndex = -1
@@ -144,17 +145,22 @@ function saveToSheet(sheet, payload) {
     sheet.appendRow(row)
   }
 
-  return respond({ success: true })
+  return { success: true }
 }
 
 function doPost(e) {
   var lock = LockService.getScriptLock()
   lock.tryLock(10000)
-
   try {
     var sheet = getSheet()
     var payload = JSON.parse(e.postData.contents)
-    return saveToSheet(sheet, payload)
+    var result = saveToSheet(sheet, payload)
+    var html = '<html><body><script>'
+      + 'try{window.top.postMessage(' + JSON.stringify({ result: result }) + ',"*")}'
+      + 'catch(e){}'
+      + '</script></body></html>'
+    return HtmlService.createHtmlOutput(html)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
   } finally {
     lock.releaseLock()
   }
