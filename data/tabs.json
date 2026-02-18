@@ -1,0 +1,24 @@
+{
+  "tabs": [
+    {
+      "name": "SP-Iskcon desire tree",
+      "file": "sp-iskcon-desire-tree.json"
+    },
+    {
+      "name": "HHRNSM",
+      "file": "hhrnsm.json"
+    },
+    {
+      "name": "Vaishnav Songs",
+      "file": "vaishnav-songs.json"
+    },
+    {
+      "name": "HHBRSM",
+      "file": "hhbrsm.json"
+    },
+    {
+      "name": "HGRSP",
+      "file": "hgrsp.json"
+    }
+  ]
+}
