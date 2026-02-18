@@ -24,9 +24,13 @@ export async function cloudLoad(userId) {
 export async function cloudSave(data) {
     if (!SYNC_URL) return
     try {
-        const encoded = encodeURIComponent(JSON.stringify(data))
-        await fetch(`${SYNC_URL}?action=save&data=${encoded}`)
-    } catch (e) {}
+        const json = JSON.stringify(data)
+        const res = await fetch(`${SYNC_URL}?action=save&data=${encodeURIComponent(json)}`)
+        const result = await res.json()
+        console.log('[CloudSync] save:', result)
+    } catch (e) {
+        console.warn('[CloudSync] save error:', e)
+    }
 }
 
 export function cloudSaveBeacon(data) {

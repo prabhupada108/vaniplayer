@@ -520,6 +520,19 @@ const VaniPlayer = () => {
         try {
             await audioRef.current.play();
             setIsPlaying(true);
+            // Force cloud save immediately when a new track starts
+            if (isCloudEnabled()) {
+                lastCloudSaveRef.current = Date.now()
+                cloudSave({
+                    userId: currentUser,
+                    tab: trackTab || activeTab,
+                    trackTitle: track.title,
+                    trackTheme: track.Theme,
+                    trackLink: track.link,
+                    time: 0,
+                    completedTracks: [...completedTracksRef.current]
+                })
+            }
         } catch (e) {
             if (!resolved.includes('drive.google.com')) {
                 const filename = resolved.split('/').pop().replace(/ /g, '%20');

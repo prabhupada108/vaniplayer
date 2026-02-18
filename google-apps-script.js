@@ -83,7 +83,7 @@ function doGet(e) {
     }
 
     if (action === 'save') {
-      var payload = JSON.parse(decodeURIComponent(e.parameter.data))
+      var payload = JSON.parse(e.parameter.data)
       return saveToSheet(sheet, payload)
     }
 
