@@ -261,17 +261,21 @@ const VaniPlayer = () => {
         }
     }, [currentUser, currentTrack, activeTab, currentTrackTab, storageKey])
 
-    const fetchTabData = React.useCallback(async (tabName) => {
+    const fetchTabData = React.useCallback(async (tabName, forceRefresh = false) => {
         const file = tabFiles[tabName]
         if (!file) return null
         try {
-            const res = await fetch(`data/tabs/${file}`)
+            const url = forceRefresh ? `data/tabs/${file}?_=${Date.now()}` : `data/tabs/${file}`
+            const res = await fetch(url)
             if (!res.ok) throw new Error("Sync failed")
             const data = await res.json()
-            setTabData(prev => (prev[tabName] ? prev : { ...prev, [tabName]: data }))
+            setTabData(prev => {
+                if (!forceRefresh && prev[tabName]) return prev
+                return { ...prev, [tabName]: data }
+            })
             return data
         } catch (err) {
-            setLoadError(err.message || "Sync failed")
+            if (!forceRefresh) setLoadError(err.message || "Sync failed")
             return null
         }
     }, [tabFiles])
@@ -390,7 +394,23 @@ const VaniPlayer = () => {
 
     useEffect(() => {
         const handleVisibility = () => {
-            if (document.visibilityState === 'hidden') saveProgressNow(true)
+            if (document.visibilityState === 'hidden') {
+                saveProgressNow(true)
+            } else if (document.visibilityState === 'visible') {
+                // Refresh track data and cloud sync when user returns to the app
+                if (activeTab) fetchTabData(activeTab, true)
+                if (currentUser && isCloudEnabled()) {
+                    cloudLoad(currentUser).then(cloudData => {
+                        if (!cloudData?.completedTracks?.length) return
+                        setCompletedTracks(prev => {
+                            const merged = new Set([...prev, ...cloudData.completedTracks])
+                            if (merged.size === prev.size) return prev
+                            try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch (e) {}
+                            return merged
+                        })
+                    }).catch(() => {})
+                }
+            }
         }
         const handleBeforeUnload = () => {
             saveProgressNow() // localStorage (fast)
@@ -414,6 +434,50 @@ const VaniPlayer = () => {
             document.removeEventListener('visibilitychange', handleVisibility)
         }
     }, [saveProgressNow, currentUser, currentTrack, activeTab, currentTrackTab])
+
+    // Periodic track list refresh (every 5 min) — picks up new tracks without page reload
+    useEffect(() => {
+        if (!tabList.length) return
+        const interval = setInterval(() => {
+            // Re-fetch tabs.json for any new tabs
+            fetch(`data/tabs.json?_=${Date.now()}`)
+                .then(res => res.ok ? res.json() : null)
+                .then(payload => {
+                    if (!payload?.tabs) return
+                    const tabs = payload.tabs
+                    const fileMap = {}
+                    tabs.forEach(t => { if (t?.name && t?.file) fileMap[t.name] = t.file })
+                    setTabList(tabs)
+                    setTabFiles(fileMap)
+                })
+                .catch(() => {})
+            // Re-fetch data for currently active tab
+            if (activeTab) fetchTabData(activeTab, true)
+        }, 5 * 60 * 1000)
+        return () => clearInterval(interval)
+    }, [tabList, activeTab, fetchTabData])
+
+    // Periodic cloud sync (every 2 min) — picks up session from other devices
+    useEffect(() => {
+        if (!currentUser || !isCloudEnabled()) return
+        const interval = setInterval(async () => {
+            try {
+                const cloudData = await cloudLoad(currentUser)
+                if (!cloudData) return
+
+                // Merge completed tracks
+                if (cloudData.completedTracks?.length) {
+                    setCompletedTracks(prev => {
+                        const merged = new Set([...prev, ...cloudData.completedTracks])
+                        if (merged.size === prev.size) return prev
+                        try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch (e) {}
+                        return merged
+                    })
+                }
+            } catch (e) {}
+        }, 2 * 60 * 1000)
+        return () => clearInterval(interval)
+    }, [currentUser, completedKey])
 
     useEffect(() => {
         fetch('data/tabs.json')
