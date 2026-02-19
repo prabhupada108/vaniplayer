@@ -870,7 +870,7 @@ const VaniPlayer = () => {
                     <div style={{ textAlign: 'center', fontSize: '0.7rem', color: '#6b7280', fontWeight: 600, padding: '2px 0' }}>
                         {completedCount > 0 && <span style={{ color: '#4ade80' }}>{completedCount} listened</span>}
                         {completedCount > 0 && ' / '}
-                        {currentTabItems.length} lectures
+                        {currentTabItems.length} files
                     </div>
                 )}
             </header>
