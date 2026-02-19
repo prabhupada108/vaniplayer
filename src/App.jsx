@@ -617,10 +617,16 @@ const VaniPlayer = () => {
                     await audioRef.current.play();
                     setIsPlaying(true);
                 } catch (e) {
-                    // Audio not loaded yet — reload and retry
+                    // Audio not loaded yet — reload and wait for it before retrying
                     audioRef.current.src = resolved;
                     audioRef.current.load();
                     try {
+                        await new Promise((res, rej) => {
+                            const onReady = () => { audioRef.current.removeEventListener('canplay', onReady); audioRef.current.removeEventListener('error', onErr); res(); }
+                            const onErr = () => { audioRef.current.removeEventListener('canplay', onReady); audioRef.current.removeEventListener('error', onErr); rej(new Error('load failed')); }
+                            audioRef.current.addEventListener('canplay', onReady, { once: true });
+                            audioRef.current.addEventListener('error', onErr, { once: true });
+                        });
                         await audioRef.current.play();
                         setIsPlaying(true);
                     } catch (e2) {
