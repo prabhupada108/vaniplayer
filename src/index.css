@@ -151,7 +151,7 @@ input, textarea {
 
 .search-input {
   width: 100%;
-  padding: 15px 20px 15px 50px;
+  padding: 15px 48px 15px 50px;
   background: rgba(28, 28, 30, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;

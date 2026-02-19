@@ -593,6 +593,11 @@ const VaniPlayer = () => {
 
     const activeTabArtwork = useMemo(() => getArtworkForTab(activeTab), [activeTab])
 
+    const completedCount = useMemo(() => {
+        if (!completedTracks.size) return 0
+        return currentTabItems.filter(t => completedTracks.has(getTrackId(t))).length
+    }, [currentTabItems, completedTracks])
+
     const PAGE_SIZE = 40
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
     const visibleItems = useMemo(() => filteredData.slice(0, visibleCount), [filteredData, visibleCount])
@@ -739,6 +744,48 @@ const VaniPlayer = () => {
         }
     }, [isPlaying, currentTrack, markCompleted, saveProgressNow])
 
+    // Media Session API — lock screen controls + notification metadata
+    useEffect(() => {
+        if (!('mediaSession' in navigator) || !currentTrack) return
+        const tabName = currentTrackTab || activeTab
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: String(currentTrack.title),
+            artist: tabName,
+            album: 'Vani Player',
+            artwork: [{ src: getArtworkForTab(tabName), sizes: '512x512', type: 'image/png' }]
+        })
+        navigator.mediaSession.setActionHandler('play', () => handlePlay(currentTrack, tabName))
+        navigator.mediaSession.setActionHandler('pause', () => { audioRef.current.pause(); setIsPlaying(false); saveProgressNow(true); })
+        navigator.mediaSession.setActionHandler('seekbackward', () => skip(-10))
+        navigator.mediaSession.setActionHandler('seekforward', () => skip(30))
+        navigator.mediaSession.setActionHandler('seekto', (details) => {
+            if (details.seekTime != null && audioRef.current.duration) {
+                audioRef.current.currentTime = details.seekTime
+            }
+        })
+        return () => {
+            try {
+                navigator.mediaSession.setActionHandler('play', null)
+                navigator.mediaSession.setActionHandler('pause', null)
+                navigator.mediaSession.setActionHandler('seekbackward', null)
+                navigator.mediaSession.setActionHandler('seekforward', null)
+                navigator.mediaSession.setActionHandler('seekto', null)
+            } catch (e) {}
+        }
+    }, [currentTrack, currentTrackTab, activeTab, handlePlay, saveProgressNow])
+
+    // Keep media session position state in sync
+    useEffect(() => {
+        if (!('mediaSession' in navigator) || !currentTrack) return
+        if (!isNaN(duration) && duration > 0) {
+            navigator.mediaSession.setPositionState({
+                duration: duration,
+                playbackRate: playbackRate,
+                position: Math.min(currentTime, duration)
+            })
+        }
+    }, [currentTime, duration, playbackRate, currentTrack])
+
     if (!currentUser) {
         return <LoginScreen onLogin={handleLogin} />
     }
@@ -805,12 +852,27 @@ const VaniPlayer = () => {
                 <div className="search-container">
                     <Search size={20} style={{ position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)', color: '#4b5563' }} />
                     <input className="search-input" placeholder="Search teachings..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                    {search && (
+                        <button
+                            onClick={() => setSearch('')}
+                            style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                        >
+                            <X size={16} color="#9ca3af" />
+                        </button>
+                    )}
                 </div>
                 <div className="tab-row">
                     {tabList.map(t => (
                         <button key={t.name} className={`tab-btn ${activeTab === t.name ? 'active' : ''}`} onClick={() => setActiveTab(t.name)}>{t.name}</button>
                     ))}
                 </div>
+                {currentTabItems.length > 0 && (
+                    <div style={{ textAlign: 'center', fontSize: '0.7rem', color: '#6b7280', fontWeight: 600, padding: '2px 0' }}>
+                        {completedCount > 0 && <span style={{ color: '#4ade80' }}>{completedCount} listened</span>}
+                        {completedCount > 0 && ' / '}
+                        {currentTabItems.length} lectures
+                    </div>
+                )}
             </header>
 
             <main ref={listRef} className="song-grid" style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}>
