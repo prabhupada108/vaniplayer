@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
-    Search, Play, Pause, ChevronLeft, ChevronRight,
-    X, Shuffle, RotateCcw, RotateCw,
-    MoreHorizontal, AlertCircle, Loader2, Link2, Info, Share2, LogOut
+    Search, Play, Pause,
+    X, RotateCcw, RotateCw,
+    AlertCircle, Loader2, Link2, Share2, LogOut
 } from 'lucide-react'
 import prabhupadaImg from './assets/prabhupada.png'
 import rnsmImg from './assets/rnsm.png'
@@ -10,7 +10,7 @@ import hhbrsmImg from './assets/hhbrsm.png'
 import vaishnavaSongImg from './assets/vaishnavasong.png'
 import rspImg from './assets/RSP.jpeg'
 import LoginScreen from './LoginScreen.jsx'
-import { isCloudEnabled, cloudLoad, cloudSave, cloudSaveBeacon, cloudLoadUsers } from './cloudSync.js'
+import { isCloudEnabled, cloudLoad, cloudSave, cloudSaveBeacon } from './cloudSync.js'
 
 class ErrorBoundary extends React.Component {
     constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -175,15 +175,7 @@ const VaniPlayer = () => {
         cloudSyncedRef.current = ''
         try {
             localStorage.setItem('vani_current_user', userId)
-            const raw = localStorage.getItem('vani_users')
-            const users = raw ? JSON.parse(raw) : []
-            if (!users.includes(userId)) {
-                users.push(userId)
-                localStorage.setItem('vani_users', JSON.stringify(users))
-            }
-        } catch (e) {
-            // Ignore storage failures
-        }
+        } catch (e) {}
     }
 
     const handleLogout = () => {
@@ -591,6 +583,14 @@ const VaniPlayer = () => {
     const handleShare = async () => {
         if (!currentTrack) return
         const url = buildShareUrl(currentTrack)
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: currentTrack.title, url })
+                return
+            } catch (e) {
+                if (e.name === 'AbortError') return
+            }
+        }
         try {
             await navigator.clipboard.writeText(url)
             setShareNotice('Share link copied!')
@@ -616,7 +616,12 @@ const VaniPlayer = () => {
             if (currentTrack) markCompleted(currentTrack)
             saveProgressNow(true)
         }
-        const handleError = () => { if (isPlaying) setPlaybackError("Transmission interrupted."); setIsPlaying(false); }
+        const handleError = () => {
+            if (isPlaying) {
+                setPlaybackError("Transmission interrupted.")
+                setIsPlaying(false)
+            }
+        }
         audio.addEventListener('timeupdate', update)
         audio.addEventListener('loadedmetadata', handleLoadedMetadata)
         audio.addEventListener('ended', handleEnded)
@@ -650,7 +655,7 @@ const VaniPlayer = () => {
     )
 
     return (
-        <div className="main-layout" style={{ height: '100vh', overflow: 'hidden' }}>
+        <div className="main-layout">
             <header className="app-header" style={{ opacity: showDetail ? 0 : 1, transition: '0.3s', position: 'relative' }}>
 
                 <div className="hero-strip">
@@ -773,12 +778,12 @@ const VaniPlayer = () => {
                             </div>
                         </div>
                         <div className="controls-row">
-                            <div style={{ flex: 1, opacity: 0.3 }}><Shuffle size={24} /></div>
+                            <div style={{ flex: 1 }} />
                             <div className="main-controls">
                                 <button className="icon-btn" onClick={() => skip(-10)} style={{ position: 'relative' }}>
                                     <RotateCcw size={36} /><span style={{ position: 'absolute', top: '55%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '10px', fontWeight: 900 }}>10</span>
                                 </button>
-                                <div className="play-pause-circle" onClick={() => handlePlay(currentTrack)}>
+                                <div className="play-pause-circle" onClick={() => handlePlay(currentTrack, currentTrackTab || activeTab)}>
                                     {isPlaying ? <Pause size={40} fill="black" /> : <Play size={40} fill="black" style={{ marginLeft: '4px' }} />}
                                 </div>
                                 <button className="icon-btn" onClick={() => skip(30)} style={{ position: 'relative' }}>
