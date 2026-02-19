@@ -121,7 +121,43 @@ const buildShareUrl = (track) => {
     return slug ? `${base}${encodeURIComponent(slug)}` : base
 }
 
-const getTrackId = (track) => track?.link || `${track?.title}|${track?.Theme || ''}`
+// Short hash for track IDs — keeps localStorage and cloud compact
+const hashStr = (str) => {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57
+    for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i)
+        h1 = Math.imul(h1 ^ ch, 2654435761)
+        h2 = Math.imul(h2 ^ ch, 1597334677)
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+    return (((h2 >>> 0) * 0x100000000 + (h1 >>> 0)).toString(36)).slice(0, 8)
+}
+const getTrackId = (track) => {
+    const raw = track?.link || `${track?.title}|${track?.Theme || ''}`
+    return hashStr(raw)
+}
+
+// Migrate old full-URL IDs to hashed IDs
+const migrateCompletedTracks = (key) => {
+    try {
+        const raw = localStorage.getItem(key)
+        if (!raw) return new Set()
+        const arr = JSON.parse(raw)
+        if (!arr.length) return new Set()
+        // If first entry looks like a URL or long string, migrate all
+        const needsMigration = arr.some(id => id.length > 20)
+        if (needsMigration) {
+            const migrated = arr.map(id => id.length > 20 ? hashStr(id) : id)
+            const deduped = [...new Set(migrated)]
+            localStorage.setItem(key, JSON.stringify(deduped))
+            return new Set(deduped)
+        }
+        return new Set(arr)
+    } catch (e) {
+        return new Set()
+    }
+}
 
 const VaniPlayer = () => {
     const [currentUser, setCurrentUser] = useState(() => {
@@ -203,14 +239,9 @@ const VaniPlayer = () => {
         ) || null
     }
 
-    // Load completed tracks when user changes
+    // Load completed tracks when user changes (migrates old full-URL IDs to hashes)
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem(completedKey)
-            setCompletedTracks(raw ? new Set(JSON.parse(raw)) : new Set())
-        } catch (e) {
-            setCompletedTracks(new Set())
-        }
+        setCompletedTracks(migrateCompletedTracks(completedKey))
     }, [completedKey])
 
     const markCompleted = React.useCallback((track) => {
@@ -329,10 +360,12 @@ const VaniPlayer = () => {
             const cloudData = await cloudLoad(currentUser)
             if (!cloudData) return
 
-            // Merge completed tracks (union of local + cloud)
+            // Merge completed tracks (union of local + cloud, hash any old full-URL IDs)
             if (cloudData.completedTracks?.length) {
+                const cloudIds = cloudData.completedTracks.map(id => id.length > 20 ? hashStr(id) : id)
                 setCompletedTracks(prev => {
-                    const merged = new Set([...prev, ...cloudData.completedTracks])
+                    const merged = new Set([...prev, ...cloudIds])
+                    if (merged.size === prev.size) return prev
                     try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch (e) {}
                     return merged
                 })
@@ -402,8 +435,9 @@ const VaniPlayer = () => {
                 if (currentUser && isCloudEnabled()) {
                     cloudLoad(currentUser).then(cloudData => {
                         if (!cloudData?.completedTracks?.length) return
+                        const cloudIds = cloudData.completedTracks.map(id => id.length > 20 ? hashStr(id) : id)
                         setCompletedTracks(prev => {
-                            const merged = new Set([...prev, ...cloudData.completedTracks])
+                            const merged = new Set([...prev, ...cloudIds])
                             if (merged.size === prev.size) return prev
                             try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch (e) {}
                             return merged
@@ -465,10 +499,11 @@ const VaniPlayer = () => {
                 const cloudData = await cloudLoad(currentUser)
                 if (!cloudData) return
 
-                // Merge completed tracks
+                // Merge completed tracks (hash any old full-URL IDs)
                 if (cloudData.completedTracks?.length) {
+                    const cloudIds = cloudData.completedTracks.map(id => id.length > 20 ? hashStr(id) : id)
                     setCompletedTracks(prev => {
-                        const merged = new Set([...prev, ...cloudData.completedTracks])
+                        const merged = new Set([...prev, ...cloudIds])
                         if (merged.size === prev.size) return prev
                         try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch (e) {}
                         return merged
