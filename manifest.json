@@ -1,0 +1,25 @@
+{
+  "name": "Srila Prabhupada Vani Player",
+  "short_name": "Vani Player",
+  "description": "Divine Instruction Portal — Listen to spiritual lectures by Srila Prabhupada and Vaishnavas",
+  "start_url": "/vaniplayer/",
+  "scope": "/vaniplayer/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0b0c",
+  "theme_color": "#0b0b0c",
+  "icons": [
+    {
+      "src": "icons/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
