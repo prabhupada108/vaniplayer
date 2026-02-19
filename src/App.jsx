@@ -306,8 +306,13 @@ const VaniPlayer = () => {
                 setTimeout(() => {
                     if (audioRef.current) {
                         audioRef.current.src = resolveUrl(found)
-                        audioRef.current.currentTime = time || 0
-                        setCurrentTime(time || 0)
+                        audioRef.current.load()
+                        const seekWhenReady = () => {
+                            audioRef.current.currentTime = time || 0
+                            setCurrentTime(time || 0)
+                            audioRef.current.removeEventListener('loadedmetadata', seekWhenReady)
+                        }
+                        audioRef.current.addEventListener('loadedmetadata', seekWhenReady)
                     }
                 }, 300)
             }
@@ -360,8 +365,13 @@ const VaniPlayer = () => {
                     setTimeout(() => {
                         if (audioRef.current) {
                             audioRef.current.src = resolveUrl(found)
-                            audioRef.current.currentTime = Number(cloudData.time) || 0
-                            setCurrentTime(Number(cloudData.time) || 0)
+                            audioRef.current.load()
+                            const seekWhenReady = () => {
+                                audioRef.current.currentTime = Number(cloudData.time) || 0
+                                setCurrentTime(Number(cloudData.time) || 0)
+                                audioRef.current.removeEventListener('loadedmetadata', seekWhenReady)
+                            }
+                            audioRef.current.addEventListener('loadedmetadata', seekWhenReady)
                         }
                     }, 500)
                     // Also update localStorage with the cloud data
@@ -507,8 +517,26 @@ const VaniPlayer = () => {
         const resolved = resolveUrl(track);
         if (currentTrack === track) {
             if (trackTab && trackTab !== currentTrackTab) setCurrentTrackTab(trackTab);
-            if (isPlaying) { audioRef.current.pause(); setIsPlaying(false); saveProgressNow(true); }
-            else { audioRef.current.play(); setIsPlaying(true); }
+            if (isPlaying) {
+                audioRef.current.pause();
+                setIsPlaying(false);
+                saveProgressNow(true);
+            } else {
+                try {
+                    await audioRef.current.play();
+                    setIsPlaying(true);
+                } catch (e) {
+                    // Audio not loaded yet — reload and retry
+                    audioRef.current.src = resolved;
+                    audioRef.current.load();
+                    try {
+                        await audioRef.current.play();
+                        setIsPlaying(true);
+                    } catch (e2) {
+                        setPlaybackError("Couldn't resume. Tap the track again.");
+                    }
+                }
+            }
             return;
         }
         saveProgressNow(true);
