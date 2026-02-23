@@ -29,6 +29,8 @@ class ErrorBoundary extends React.Component {
     }
 }
 
+const formatTime = (s) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
+
 const TrackList = React.memo(function TrackList({
     items,
     activeTab,
@@ -36,12 +38,15 @@ const TrackList = React.memo(function TrackList({
     isPlaying,
     onPlay,
     artwork,
-    completedTracks
+    completedTracks,
+    savedPositions
 }) {
     return (
         <>
             {items.map((track, i) => {
-                const isCompleted = completedTracks.has(getTrackId(track))
+                const trackId = getTrackId(track)
+                const isCompleted = completedTracks.has(trackId)
+                const savedTime = savedPositions[trackId]
                 return (
                     <div key={track.link || `${track.title}-${i}`} className="song-card" onClick={() => onPlay(track, activeTab)}>
                         <div style={{ width: '48px', height: '48px', borderRadius: '8px', overflow: 'hidden', marginRight: '16px', flexShrink: 0, position: 'relative' }}>
@@ -59,6 +64,9 @@ const TrackList = React.memo(function TrackList({
                             <div className="song-meta">
                                 {String(track.Theme || activeTab).substring(0, 100)}
                                 {isCompleted && <span style={{ color: '#4ade80', marginLeft: '8px', fontSize: '0.65rem', fontWeight: 700 }}>Listened</span>}
+                                {!isCompleted && savedTime > 0 && (
+                                    <span style={{ color: '#f7c566', marginLeft: '8px', fontSize: '0.65rem', fontWeight: 700 }}>Resume {formatTime(savedTime)}</span>
+                                )}
                             </div>
                         </div>
                         <div>
@@ -190,6 +198,7 @@ const VaniPlayer = () => {
 
     const storageKey = currentUser ? `vani_progress_${currentUser}` : 'vani_progress'
     const completedKey = currentUser ? `vani_completed_${currentUser}` : 'vani_completed'
+    const positionsKey = currentUser ? `vani_positions_${currentUser}` : 'vani_positions'
 
     const audioRef = useRef(new Audio())
     const listRef = useRef(null)
@@ -202,8 +211,45 @@ const VaniPlayer = () => {
 
     const [completedTracks, setCompletedTracks] = useState(new Set())
 
+    // Per-track saved positions: { trackId: seconds }
+    const [savedPositions, setSavedPositions] = useState(() => {
+        try {
+            const raw = localStorage.getItem(currentUser ? `vani_positions_${currentUser}` : 'vani_positions')
+            return raw ? JSON.parse(raw) : {}
+        } catch (e) { return {} }
+    })
+
+    const saveTrackPosition = React.useCallback((track, time) => {
+        if (!track || !time || time < 5) return // Don't save if less than 5 seconds in
+        const id = getTrackId(track)
+        setSavedPositions(prev => {
+            const next = { ...prev, [id]: Math.floor(time) }
+            try { localStorage.setItem(positionsKey, JSON.stringify(next)) } catch (e) {}
+            return next
+        })
+    }, [positionsKey])
+
+    const clearTrackPosition = React.useCallback((track) => {
+        if (!track) return
+        const id = getTrackId(track)
+        setSavedPositions(prev => {
+            const next = { ...prev }
+            delete next[id]
+            try { localStorage.setItem(positionsKey, JSON.stringify(next)) } catch (e) {}
+            return next
+        })
+    }, [positionsKey])
+
     // Keep ref in sync for use in beforeunload/beacon (avoids stale closures)
     useEffect(() => { completedTracksRef.current = completedTracks }, [completedTracks])
+
+    // Reload saved positions when user changes
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(positionsKey)
+            setSavedPositions(raw ? JSON.parse(raw) : {})
+        } catch (e) { setSavedPositions({}) }
+    }, [positionsKey])
 
     const handleLogin = (userId) => {
         setCurrentUser(userId)
@@ -260,6 +306,7 @@ const VaniPlayer = () => {
     const saveProgressNow = React.useCallback((forceCloud = false) => {
         if (!currentUser || !currentTrack) return
         const tabForTrack = currentTrackTab || activeTab
+        const time = audioRef.current ? audioRef.current.currentTime : 0
         const state = {
             tab: tabForTrack,
             track: {
@@ -267,12 +314,14 @@ const VaniPlayer = () => {
                 Theme: currentTrack.Theme,
                 link: currentTrack.link
             },
-            time: audioRef.current ? audioRef.current.currentTime : 0,
+            time,
             lastPlayed: Date.now()
         }
         try {
             localStorage.setItem(storageKey, JSON.stringify(state))
         } catch (e) {}
+        // Also save per-track position
+        if (time > 5) saveTrackPosition(currentTrack, time)
 
         // Cloud sync (debounced: every 30s unless forced)
         if (isCloudEnabled()) {
@@ -290,7 +339,7 @@ const VaniPlayer = () => {
                 })
             }
         }
-    }, [currentUser, currentTrack, activeTab, currentTrackTab, storageKey])
+    }, [currentUser, currentTrack, activeTab, currentTrackTab, storageKey, saveTrackPosition])
 
     const fetchTabData = React.useCallback(async (tabName, forceRefresh = false) => {
         const file = tabFiles[tabName]
@@ -641,12 +690,25 @@ const VaniPlayer = () => {
             }
             return;
         }
+        // Save position of the track we're leaving
+        if (currentTrack && audioRef.current.currentTime > 5) {
+            saveTrackPosition(currentTrack, audioRef.current.currentTime);
+        }
         saveProgressNow(true);
         setCurrentTrack(track);
         if (trackTab) setCurrentTrackTab(trackTab);
         audioRef.current.src = resolved;
         audioRef.current.playbackRate = playbackRate;
         audioRef.current.load();
+        // Restore saved position for this track
+        const savedTime = savedPositions[getTrackId(track)];
+        if (savedTime > 0) {
+            const seekWhenReady = () => {
+                audioRef.current.currentTime = savedTime;
+                audioRef.current.removeEventListener('loadedmetadata', seekWhenReady);
+            };
+            audioRef.current.addEventListener('loadedmetadata', seekWhenReady);
+        }
         try {
             await audioRef.current.play();
             setIsPlaying(true);
@@ -673,7 +735,7 @@ const VaniPlayer = () => {
             }
             setPlaybackError("Link unavailable.");
         }
-    }, [currentTrack, currentTrackTab, isPlaying, playbackRate, saveProgressNow])
+    }, [currentTrack, currentTrackTab, isPlaying, playbackRate, saveProgressNow, saveTrackPosition, savedPositions])
 
     const skip = (s) => { if (audioRef.current.duration) audioRef.current.currentTime += s; }
     const changeSpeed = () => {
@@ -682,12 +744,34 @@ const VaniPlayer = () => {
         setPlaybackRate(next); audioRef.current.playbackRate = next;
     }
 
-    const handleSeek = (e) => {
+    const [isDragging, setIsDragging] = useState(false)
+
+    const seekFromEvent = (e) => {
         if (!progressRef.current || !audioRef.current.duration) return;
         const r = progressRef.current.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const pos = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
         audioRef.current.currentTime = pos * audioRef.current.duration;
+    };
+
+    const handleSeek = (e) => seekFromEvent(e);
+
+    const handleDragStart = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+        seekFromEvent(e);
+        const onMove = (ev) => seekFromEvent(ev);
+        const onEnd = () => {
+            setIsDragging(false);
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onEnd);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onEnd);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onEnd);
     };
 
     const handleShare = async () => {
@@ -723,7 +807,10 @@ const VaniPlayer = () => {
         const handleLoadedMetadata = () => update(true)
         const handleEnded = () => {
             setIsPlaying(false)
-            if (currentTrack) markCompleted(currentTrack)
+            if (currentTrack) {
+                markCompleted(currentTrack)
+                clearTrackPosition(currentTrack) // Clear saved position for completed tracks
+            }
             saveProgressNow(true)
         }
         const handleError = () => {
@@ -742,7 +829,7 @@ const VaniPlayer = () => {
             audio.removeEventListener('ended', handleEnded)
             audio.removeEventListener('error', handleError)
         }
-    }, [isPlaying, currentTrack, markCompleted, saveProgressNow])
+    }, [isPlaying, currentTrack, markCompleted, saveProgressNow, clearTrackPosition])
 
     // Media Session API — lock screen controls + notification metadata
     useEffect(() => {
@@ -884,6 +971,7 @@ const VaniPlayer = () => {
                     onPlay={handlePlay}
                     artwork={activeTabArtwork}
                     completedTracks={completedTracks}
+                    savedPositions={savedPositions}
                 />
                 {canLoadMore && (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 30px' }}>
@@ -931,13 +1019,15 @@ const VaniPlayer = () => {
                     <div className="player-controls-bar">
                         <div className="progress-container">
                             <div
-                                className="progress-bar-base"
+                                className={`progress-bar-base${isDragging ? ' dragging' : ''}`}
                                 ref={progressRef}
                                 onClick={handleSeek}
-                                onTouchStart={handleSeek}
-                                onTouchMove={handleSeek}
+                                onMouseDown={handleDragStart}
+                                onTouchStart={handleDragStart}
                             >
-                                <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
+                                <div className="progress-bar-fill" style={{ width: `${progress}%` }}>
+                                    <div className="progress-thumb" />
+                                </div>
                             </div>
                             <div className="time-stamps">
                                 <span>{Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')}</span>
