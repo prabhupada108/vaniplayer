@@ -25,37 +25,37 @@ const LoginScreen = ({ onLogin }) => {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1000,
-            padding: '24px'
+            padding: 'clamp(12px, 4vw, 24px)'
         }}>
             <div style={{
                 background: 'rgba(30, 41, 59, 0.7)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
-                padding: '40px',
-                borderRadius: '32px',
+                padding: 'clamp(20px, 6vw, 40px)',
+                borderRadius: 'clamp(20px, 5vw, 32px)',
                 width: '100%',
                 maxWidth: '400px',
                 textAlign: 'center',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
             }}>
                 <div style={{
-                    width: '80px',
-                    height: '80px',
+                    width: 'clamp(56px, 16vw, 80px)',
+                    height: 'clamp(56px, 16vw, 80px)',
                     background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
                     borderRadius: '50%',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    margin: '0 auto 24px',
+                    margin: '0 auto clamp(12px, 3vw, 24px)',
                     boxShadow: '0 10px 25px -5px rgba(251, 191, 36, 0.4)'
                 }}>
-                    <User size={40} color="#0f172a" strokeWidth={2.5} />
+                    <User size={32} color="#0f172a" strokeWidth={2.5} />
                 </div>
 
                 <h1 style={{
                     color: 'white',
-                    fontSize: '2rem',
+                    fontSize: 'clamp(1.4rem, 5vw, 2rem)',
                     fontWeight: '800',
                     marginBottom: '8px',
                     letterSpacing: '-0.02em'
@@ -63,7 +63,7 @@ const LoginScreen = ({ onLogin }) => {
 
                 <p style={{
                     color: '#94a3b8',
-                    marginBottom: '24px',
+                    marginBottom: 'clamp(12px, 3vw, 24px)',
                     fontSize: '0.9rem',
                     lineHeight: '1.5'
                 }}>
@@ -78,7 +78,7 @@ const LoginScreen = ({ onLogin }) => {
                         onChange={(e) => setUserId(e.target.value)}
                         style={{
                             width: '100%',
-                            padding: '16px 24px',
+                            padding: '14px clamp(16px, 4vw, 24px)',
                             borderRadius: '16px',
                             border: '1px solid rgba(255, 255, 255, 0.1)',
                             background: 'rgba(15, 23, 42, 0.6)',

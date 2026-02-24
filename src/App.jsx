@@ -49,7 +49,7 @@ const TrackList = React.memo(function TrackList({
                 const savedTime = savedPositions[trackId]
                 return (
                     <div key={track.link || `${track.title}-${i}`} className="song-card" onClick={() => onPlay(track, activeTab)}>
-                        <div style={{ width: '48px', height: '48px', borderRadius: '8px', overflow: 'hidden', marginRight: '16px', flexShrink: 0, position: 'relative' }}>
+                        <div style={{ width: 'clamp(40px, 12vw, 52px)', height: 'clamp(40px, 12vw, 52px)', borderRadius: '8px', overflow: 'hidden', marginRight: 'clamp(8px, 3vw, 16px)', flexShrink: 0, position: 'relative' }}>
                             <img src={artwork} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Art" loading="lazy" />
                             {isCompleted && (
                                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(74, 222, 128, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -900,7 +900,7 @@ const VaniPlayer = () => {
                 <div className="hero-strip">
                     <div className="hero-overlay" />
                     <div className="hero-content">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'clamp(2px, 1vw, 8px)' }}>
                             <div style={{ flex: 1 }} />
                             <div style={{ flex: 1, textAlign: 'center' }}>
                                 <h1 className="brand-title">Vani Player</h1>
@@ -919,8 +919,11 @@ const VaniPlayer = () => {
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
+                                        justifyContent: 'center',
                                         gap: '6px',
-                                        transition: 'all 0.2s ease'
+                                        transition: 'all 0.2s ease',
+                                        minHeight: '44px',
+                                        minWidth: '44px'
                                     }}
                                     title={`Logged in as ${currentUser}`}
                                 >
@@ -937,12 +940,12 @@ const VaniPlayer = () => {
                     <p className="quote-meta">Śrīmad‑Bhāgavatam 1.7.7 • Śrīla Prabhupāda</p>
                 </div>
                 <div className="search-container">
-                    <Search size={20} style={{ position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)', color: '#4b5563' }} />
+                    <Search size={20} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#4b5563' }} />
                     <input className="search-input" placeholder="Search teachings..." value={search} onChange={(e) => setSearch(e.target.value)} />
                     {search && (
                         <button
                             onClick={() => setSearch('')}
-                            style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                            style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
                         >
                             <X size={16} color="#9ca3af" />
                         </button>
@@ -954,7 +957,7 @@ const VaniPlayer = () => {
                     ))}
                 </div>
                 {currentTabItems.length > 0 && (
-                    <div style={{ textAlign: 'center', fontSize: '0.7rem', color: '#6b7280', fontWeight: 600, padding: '2px 0' }}>
+                    <div style={{ textAlign: 'center', fontSize: '0.65rem', color: '#6b7280', fontWeight: 600, padding: 0, lineHeight: '1.2' }}>
                         {completedCount > 0 && <span style={{ color: '#4ade80' }}>{completedCount} listened</span>}
                         {completedCount > 0 && ' / '}
                         {currentTabItems.length} files
@@ -988,8 +991,8 @@ const VaniPlayer = () => {
                         <div style={{ width: '44px', height: '44px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
                             <img src={getArtworkForTab(currentTrackTab || activeTab)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
-                        <div style={{ minWidth: 0 }}>
-                            <div style={{ fontWeight: 800, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(currentTrack.title)}</div>
+                        <div style={{ minWidth: 0, maxWidth: 'calc(100vw - 160px)' }}>
+                            <div style={{ fontWeight: 800, fontSize: 'clamp(0.78rem, 2.2vw, 0.85rem)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(currentTrack.title)}</div>
                             <div style={{ fontSize: '0.65rem', color: '#fbbf24', fontWeight: 700 }}>{currentTrackTab || activeTab}</div>
                         </div>
                     </div>
@@ -1038,21 +1041,21 @@ const VaniPlayer = () => {
                             <div style={{ flex: 1 }} />
                             <div className="main-controls">
                                 <button className="icon-btn" onClick={() => skip(-10)} style={{ position: 'relative' }}>
-                                    <RotateCcw size={36} /><span style={{ position: 'absolute', top: '55%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '10px', fontWeight: 900 }}>10</span>
+                                    <RotateCcw size={32} /><span style={{ position: 'absolute', top: '55%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '10px', fontWeight: 900 }}>10</span>
                                 </button>
                                 <div className="play-pause-circle" onClick={() => handlePlay(currentTrack, currentTrackTab || activeTab)}>
                                     {isPlaying ? <Pause size={40} fill="black" /> : <Play size={40} fill="black" style={{ marginLeft: '4px' }} />}
                                 </div>
                                 <button className="icon-btn" onClick={() => skip(30)} style={{ position: 'relative' }}>
-                                    <RotateCw size={36} /><span style={{ position: 'absolute', top: '55%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '10px', fontWeight: 900 }}>30</span>
+                                    <RotateCw size={32} /><span style={{ position: 'absolute', top: '55%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '10px', fontWeight: 900 }}>30</span>
                                 </button>
                             </div>
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '20px' }}>
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'clamp(8px, 3vw, 20px)' }}>
                                 <button className="util-btn" onClick={changeSpeed}>{playbackRate}x</button>
                                 <button className="icon-btn" onClick={handleShare} title="Copy share link">
-                                    <Share2 size={26} />
+                                    <Share2 size={22} />
                                 </button>
-                                <a href={resolveUrl(currentTrack)} target="_blank" rel="noreferrer" style={{ color: '#94a3b8' }}><Link2 size={28} /></a>
+                                <a href={resolveUrl(currentTrack)} target="_blank" rel="noreferrer" style={{ color: '#94a3b8' }}><Link2 size={22} /></a>
                             </div>
                         </div>
                         {shareNotice && (
