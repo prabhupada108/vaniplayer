@@ -7,7 +7,7 @@ const LoginScreen = ({ onLogin }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         if (userId.trim()) {
-            onLogin(userId.trim());
+            onLogin(userId.trim().toLowerCase());
         }
     };
 

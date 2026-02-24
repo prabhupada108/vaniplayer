@@ -170,7 +170,8 @@ const migrateCompletedTracks = (key) => {
 const VaniPlayer = () => {
     const [currentUser, setCurrentUser] = useState(() => {
         try {
-            return localStorage.getItem('vani_current_user') || null
+            const stored = localStorage.getItem('vani_current_user')
+            return stored ? stored.toLowerCase() : null
         } catch (e) {
             return null
         }
@@ -252,11 +253,12 @@ const VaniPlayer = () => {
     }, [positionsKey])
 
     const handleLogin = (userId) => {
-        setCurrentUser(userId)
+        const normalizedId = userId.toLowerCase()
+        setCurrentUser(normalizedId)
         lastRestoredKeyRef.current = ''
         cloudSyncedRef.current = ''
         try {
-            localStorage.setItem('vani_current_user', userId)
+            localStorage.setItem('vani_current_user', normalizedId)
         } catch (e) {}
     }
 
