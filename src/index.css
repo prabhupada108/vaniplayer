@@ -178,9 +178,6 @@ input, textarea {
   overflow-x: auto;
   padding: 4px 2px;
   scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-  /* Snap tabs for better mobile scrolling */
-  scroll-snap-type: x proximity;
 }
 
 .tab-row::-webkit-scrollbar {
@@ -202,8 +199,8 @@ input, textarea {
   min-height: 44px;
   display: flex;
   align-items: center;
-  scroll-snap-align: start;
   flex-shrink: 0;
+  touch-action: manipulation;
 }
 
 .tab-btn.active {
