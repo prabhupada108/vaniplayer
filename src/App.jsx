@@ -373,12 +373,12 @@ const VaniPlayer = () => {
             const saved = JSON.parse(raw)
             const { tab, time, track } = saved || {}
             if (!tab) { lastRestoredKeyRef.current = storageKey; return }
+            lastRestoredKeyRef.current = storageKey
             setActiveTab(tab)
             const loadSaved = async () => {
                 const items = tabData[tab] || await fetchTabData(tab)
                 const found = findTrackInList(items, track)
                 if (!found) return
-                lastRestoredKeyRef.current = storageKey
                 setCurrentTrack(found)
                 setCurrentTrackTab(tab)
                 setTimeout(() => {
