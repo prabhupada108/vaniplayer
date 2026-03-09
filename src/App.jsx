@@ -31,7 +31,7 @@ class ErrorBoundary extends React.Component {
 
 const formatTime = (s) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
 
-const MarqueeTitle = ({ text, className = '', style = {} }) => {
+const MarqueeTitle = ({ text, className = '', style = {}, forceScroll = false }) => {
     const containerRef = useRef(null)
     const textRef = useRef(null)
     const [needsScroll, setNeedsScroll] = useState(false)
@@ -42,15 +42,15 @@ const MarqueeTitle = ({ text, className = '', style = {} }) => {
             if (!containerRef.current || !textRef.current) return
             const containerW = containerRef.current.offsetWidth
             const textW = textRef.current.scrollWidth
-            const overflow = textW > containerW + 2
+            const overflow = forceScroll || textW > containerW + 2
             setNeedsScroll(overflow)
-            if (overflow) setDur(Math.max(6, textW / 35))
+            if (overflow) setDur(Math.max(8, (forceScroll ? Math.max(textW, containerW) : textW) / 30))
         }
         check()
         const ro = new ResizeObserver(check)
         if (containerRef.current) ro.observe(containerRef.current)
         return () => ro.disconnect()
-    }, [text])
+    }, [text, forceScroll])
 
     if (!needsScroll) {
         return <div ref={containerRef} className={className} style={{ ...style, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span ref={textRef}>{text}</span></div>
@@ -1051,7 +1051,7 @@ const VaniPlayer = () => {
                         <div className="artwork-box">
                             <img src={getArtworkForTab(currentTrackTab || activeTab)} />
                         </div>
-                        <MarqueeTitle text={String(currentTrack.title)} className="detail-title detail-title-glow" />
+                        <MarqueeTitle text={String(currentTrack.title)} className="detail-title detail-title-glow" forceScroll />
                         <p className="detail-meta">{currentTrackTab || activeTab} • {currentTrack.Theme || 'Spiritual Archive'}</p>
                         {playbackError && <div style={{ color: '#f87171', fontSize: '0.85rem', fontWeight: 700, marginTop: '10px' }}>{playbackError}</div>}
                     </div>
