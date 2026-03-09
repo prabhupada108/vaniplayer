@@ -31,6 +31,41 @@ class ErrorBoundary extends React.Component {
 
 const formatTime = (s) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`
 
+const MarqueeTitle = ({ text, className = '', style = {} }) => {
+    const containerRef = useRef(null)
+    const textRef = useRef(null)
+    const [needsScroll, setNeedsScroll] = useState(false)
+    const [dur, setDur] = useState(12)
+
+    useEffect(() => {
+        const check = () => {
+            if (!containerRef.current || !textRef.current) return
+            const containerW = containerRef.current.offsetWidth
+            const textW = textRef.current.scrollWidth
+            const overflow = textW > containerW + 2
+            setNeedsScroll(overflow)
+            if (overflow) setDur(Math.max(6, textW / 35))
+        }
+        check()
+        const ro = new ResizeObserver(check)
+        if (containerRef.current) ro.observe(containerRef.current)
+        return () => ro.disconnect()
+    }, [text])
+
+    if (!needsScroll) {
+        return <div ref={containerRef} className={className} style={{ ...style, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><span ref={textRef}>{text}</span></div>
+    }
+
+    return (
+        <div ref={containerRef} className={`marquee-wrap ${className}`} style={style}>
+            <div className="marquee-inner" style={{ '--marquee-duration': `${dur}s` }}>
+                <span ref={textRef}>{text}</span>
+                <span aria-hidden="true" style={{ paddingLeft: '80px' }}>{text}</span>
+            </div>
+        </div>
+    )
+}
+
 const TrackList = React.memo(function TrackList({
     items,
     activeTab,
@@ -994,7 +1029,7 @@ const VaniPlayer = () => {
                             <img src={getArtworkForTab(currentTrackTab || activeTab)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
                         <div style={{ minWidth: 0, maxWidth: 'calc(100vw - 160px)' }}>
-                            <div style={{ fontWeight: 800, fontSize: 'clamp(0.78rem, 2.2vw, 0.85rem)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{String(currentTrack.title)}</div>
+                            <MarqueeTitle text={String(currentTrack.title)} style={{ fontWeight: 800, fontSize: 'clamp(0.78rem, 2.2vw, 0.85rem)' }} />
                             <div style={{ fontSize: '0.65rem', color: '#fbbf24', fontWeight: 700 }}>{currentTrackTab || activeTab}</div>
                         </div>
                     </div>
@@ -1016,7 +1051,7 @@ const VaniPlayer = () => {
                         <div className="artwork-box">
                             <img src={getArtworkForTab(currentTrackTab || activeTab)} />
                         </div>
-                        <h2 className="detail-title">{String(currentTrack.title)}</h2>
+                        <MarqueeTitle text={String(currentTrack.title)} className="detail-title detail-title-glow" />
                         <p className="detail-meta">{currentTrackTab || activeTab} • {currentTrack.Theme || 'Spiritual Archive'}</p>
                         {playbackError && <div style={{ color: '#f87171', fontSize: '0.85rem', fontWeight: 700, marginTop: '10px' }}>{playbackError}</div>}
                     </div>
