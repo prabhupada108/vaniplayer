@@ -390,6 +390,7 @@ input, textarea {
   white-space: nowrap;
   animation: marquee-scroll var(--marquee-duration, 12s) linear infinite;
   padding-right: 80px;
+  will-change: transform;
 }
 
 .marquee-inner:hover {
