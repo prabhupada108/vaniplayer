@@ -8,3 +8,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <App />
     </React.StrictMode>,
 )
+
+// Register service worker for PWA (standalone mode, no browser URL bar)
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/vaniplayer/sw.js').catch(() => {})
+    })
+}
