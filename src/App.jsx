@@ -242,6 +242,7 @@ const VaniPlayer = () => {
     const lastProgressUpdateRef = useRef(0)
     const lastRestoredKeyRef = useRef('')
     const lastCloudSaveRef = useRef(0)
+    const slugLoadedRef = useRef(false)
     const cloudSyncedRef = useRef('')
     const completedTracksRef = useRef(new Set())
 
@@ -621,16 +622,18 @@ const VaniPlayer = () => {
     }, [activeTab, tabData, fetchTabData])
 
     useEffect(() => {
+        if (slugLoadedRef.current) return
         if (!tabList.length) return
         const slug = getSlugFromLocation()
-        if (!slug) return
+        if (!slug) { slugLoadedRef.current = true; return }
         const loadBySlug = async () => {
             try {
                 const res = await fetch('data/slug_index.json')
                 if (!res.ok) throw new Error("Sync failed")
                 const index = await res.json()
                 const entry = index?.[slug]
-                if (!entry?.tab) return
+                if (!entry?.tab) { slugLoadedRef.current = true; return }
+                slugLoadedRef.current = true
                 setActiveTab(entry.tab)
                 const items = tabData[entry.tab] || await fetchTabData(entry.tab)
                 if (!items) return
@@ -640,6 +643,7 @@ const VaniPlayer = () => {
                     setCurrentTrackTab(entry.tab)
                 }
             } catch (e) {
+                slugLoadedRef.current = true
                 setLoadError("Sync failed")
             }
         }
