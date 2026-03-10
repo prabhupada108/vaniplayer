@@ -248,6 +248,9 @@ input, textarea {
   contain-intrinsic-size: 72px;
   /* Minimum touch target height */
   min-height: 64px;
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .song-card:hover {
@@ -266,6 +269,7 @@ input, textarea {
 .song-info {
   flex-grow: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .song-title {
