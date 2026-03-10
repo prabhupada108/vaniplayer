@@ -95,7 +95,7 @@ const TrackList = React.memo(function TrackList({
                             )}
                         </div>
                         <div className="song-info">
-                            <div className="song-title" style={{ color: currentTrack === track ? '#fbbf24' : isCompleted ? '#4ade80' : 'white' }}>{String(track.title)}</div>
+                            <MarqueeTitle text={String(track.title)} className="song-title" style={{ color: currentTrack === track ? '#fbbf24' : isCompleted ? '#4ade80' : 'white' }} />
                             <div className="song-meta">
                                 {String(track.Theme || activeTab).substring(0, 100)}
                                 {isCompleted && <span style={{ color: '#4ade80', marginLeft: '8px', fontSize: '0.65rem', fontWeight: 700 }}>Listened</span>}
