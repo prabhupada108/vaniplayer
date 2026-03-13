@@ -621,6 +621,17 @@ const VaniPlayer = () => {
         fetchTabData(activeTab).then(() => setLoading(false))
     }, [activeTab, tabData, fetchTabData])
 
+    // Prefetch all other tab data in background after initial load
+    useEffect(() => {
+        if (loading || !tabList.length) return
+        const timer = setTimeout(() => {
+            tabList.forEach(t => {
+                if (t.name && !tabData[t.name]) fetchTabData(t.name)
+            })
+        }, 1500)
+        return () => clearTimeout(timer)
+    }, [loading, tabList, tabData, fetchTabData])
+
     useEffect(() => {
         if (slugLoadedRef.current) return
         if (!tabList.length) return
@@ -837,13 +848,17 @@ const VaniPlayer = () => {
 
     useEffect(() => {
         const audio = audioRef.current
+        let rafId = null
         const update = (force = false) => {
             const now = Date.now()
             if (!force && now - lastProgressUpdateRef.current < 250) return
             lastProgressUpdateRef.current = now
-            setProgress(isNaN(audio.currentTime / audio.duration) ? 0 : (audio.currentTime / audio.duration) * 100)
-            setCurrentTime(audio.currentTime)
-            setDuration(audio.duration || 0)
+            if (rafId) cancelAnimationFrame(rafId)
+            rafId = requestAnimationFrame(() => {
+                setProgress(isNaN(audio.currentTime / audio.duration) ? 0 : (audio.currentTime / audio.duration) * 100)
+                setCurrentTime(audio.currentTime)
+                setDuration(audio.duration || 0)
+            })
         }
         const handleLoadedMetadata = () => update(true)
         const handleEnded = () => {
@@ -865,6 +880,7 @@ const VaniPlayer = () => {
         audio.addEventListener('ended', handleEnded)
         audio.addEventListener('error', handleError)
         return () => {
+            if (rafId) cancelAnimationFrame(rafId)
             audio.removeEventListener('timeupdate', update)
             audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
             audio.removeEventListener('ended', handleEnded)

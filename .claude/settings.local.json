@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd multi-user login system with separate progress tracking\n\n- Integrate LoginScreen component for user authentication\n- Add user-specific localStorage keys \\(vani_progress_$user\\)\n- Each user now has separate saved progress \\(track, position, tab\\)\n- Add logout button in header \\(icon only on mobile, username + icon on desktop\\)\n- Persist logged-in user across sessions\n- Auto-resume playback from user''s last position on login\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "WebFetch(domain:script.google.com)",
+      "Bash(curl:*)",
+      "Bash(npm run deploy:*)",
+      "Bash(test:*)",
+      "Bash(git -C c: ls-files --others --exclude-standard)",
+      "Bash(gh api:*)",
+      "Bash(npx vite build:*)"
+    ]
+  }
+}
