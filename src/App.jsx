@@ -725,97 +725,79 @@ const VaniPlayer = () => {
         return currentTabItems.filter(t => completedTracks.has(getTrackId(t))).length
     }, [currentTabItems, completedTracks])
 
-    // Extract sub-folder key from a track's URL relative to its Theme segment
-    const getSubFolder = React.useCallback((track, themeKey) => {
-        const url = String(track.link || '')
-        const parts = url.split('/')
-        const idx = parts.indexOf(themeKey)
-        // Return the next path segment after the theme key (if any, and not the filename)
-        if (idx >= 0 && idx + 1 < parts.length - 1) return parts[idx + 1]
-        return null
-    }, [])
-
-    // Build recursive folder tree from tracks
-    const buildSubFolders = React.useCallback((tracks, themeKey) => {
-        const subs = {}
-        const loose = []
-        for (const track of tracks) {
-            const sf = getSubFolder(track, themeKey)
-            if (sf) {
-                if (!subs[sf]) subs[sf] = []
-                subs[sf].push(track)
-            } else {
-                loose.push(track)
-            }
-        }
-        const subKeys = Object.keys(subs)
-        if (subKeys.length <= 1) return null // No meaningful sub-folders
-        return subKeys.sort().map(key => ({
-            name: formatThemeName(key),
-            key,
-            count: subs[key].length,
-            tracks: subs[key],
-        }))
-    }, [getSubFolder])
-
-    // Build folder hierarchy from themes
+    // Build folder hierarchy purely from URL path segments
     const folderStructure = useMemo(() => {
         if (!activeTab || !currentTabItems.length) return null
-        const groups = {}
-        currentTabItems.forEach(item => {
-            const theme = item.Theme || 'Other'
-            if (!groups[theme]) groups[theme] = []
-            groups[theme].push(item)
-        })
-        const themeKeys = Object.keys(groups)
-        if (themeKeys.length <= 1) return null
 
-        if (activeTab === 'SP-Iskcon desire tree') {
-            const categorize = (test) => themeKeys.filter(test)
-            const categories = [
-                { name: 'Bhagavad Gita', themes: categorize(t => /^Chapter-/.test(t) || t === 'More' || t === 'Bhagavad_Gita_Recitation') },
-                { name: 'Srimad Bhagavatam', themes: categorize(t => /^Canto-/.test(t) || t === 'SB_07') },
-                { name: 'Chaitanya Charitamrita', themes: categorize(t => t === 'Adi_Lila' || t === 'Madhya_Lila') },
-                { name: 'Month-wise Lectures', themes: categorize(t => /^\d+$/.test(t) || /^\d{2}_-_/.test(t)) },
-                { name: 'Conversations', themes: categorize(t => ['Morning_Walk', 'Room_Conversation', 'Interview', 'Arrival_Address', 'Departure_Address', 'Happening'].includes(t)) },
-                { name: 'Books & Texts', themes: categorize(t => ['Krishna_Book', 'Nectar_Of_Devotion', 'Isopanishad'].includes(t)) },
-                { name: 'Special', themes: categorize(t => ['Festivals', 'Stories', 'Various'].includes(t)) },
-                { name: 'Other Languages', themes: categorize(t => t === '02_-_Bengali' || t === '03_-_Hindi') },
-                { name: 'Translations', themes: categorize(t => t === 'by_Lilananda_Prabhu') },
-            ].filter(c => c.themes.length > 0)
-            return categories.map(cat => {
-                const children = cat.themes.sort().map(t => {
-                    const subs = buildSubFolders(groups[t], t)
-                    return {
-                        name: formatThemeName(t),
-                        key: t,
-                        count: groups[t].length,
-                        tracks: groups[t],
-                        children: subs,
-                    }
-                })
-                return {
-                    name: cat.name,
-                    children,
-                    count: cat.themes.reduce((sum, t) => sum + groups[t].length, 0)
-                }
-            })
+        // Split all URLs into path segments
+        const allParts = currentTabItems.map(t => String(t.link || '').split('/'))
+
+        // Find common URL prefix length
+        const first = allParts[0]
+        let prefixLen = 0
+        for (let i = 0; i < first.length; i++) {
+            if (allParts.every(p => p[i] === first[i])) prefixLen = i + 1
+            else break
         }
 
-        // Default tabs: top-level = themes, sub-level = URL-extracted sub-folders
-        return themeKeys
-            .sort((a, b) => formatThemeName(a).localeCompare(formatThemeName(b), undefined, { sensitivity: 'base' }))
-            .map(theme => {
-                const subs = buildSubFolders(groups[theme], theme)
+        // Recursively build folder tree from path segments
+        const buildTree = (tracks, depth) => {
+            const groups = {}
+            const leafTracks = []
+            for (const track of tracks) {
+                const parts = String(track.link || '').split('/')
+                const remaining = parts.slice(prefixLen + depth)
+                // If only 1 segment left, it's the filename (leaf track)
+                if (remaining.length <= 1) {
+                    leafTracks.push(track)
+                } else {
+                    const key = remaining[0]
+                    if (!(key in groups)) groups[key] = []
+                    groups[key].push(track)
+                }
+            }
+
+            const groupKeys = Object.keys(groups)
+
+            // Single sub-folder containing all tracks — skip this level, go deeper
+            if (groupKeys.length === 1 && leafTracks.length === 0) {
+                const deeper = buildTree(groups[groupKeys[0]], depth + 1)
+                if (deeper) return deeper
+            }
+
+            // No sub-folders at all — flat list
+            if (groupKeys.length === 0) return null
+            // Only 1 sub-folder with some leaf tracks — not enough structure
+            if (groupKeys.length <= 1 && leafTracks.length > 0) return null
+
+            const folders = groupKeys.sort().map(key => {
+                const children = buildTree(groups[key], depth + 1)
+                const decodedName = formatThemeName(decodeURIComponent(key.replace(/\+/g, ' ')))
                 return {
-                    name: formatThemeName(theme),
-                    key: theme,
-                    count: groups[theme].length,
-                    tracks: groups[theme],
-                    children: subs,
+                    name: decodedName,
+                    key,
+                    count: groups[key].length,
+                    tracks: groups[key],
+                    children,
                 }
             })
-    }, [currentTabItems, activeTab, buildSubFolders])
+
+            // If there are leaf tracks alongside folders, add them as "Other"
+            if (leafTracks.length > 0) {
+                folders.push({
+                    name: 'Other',
+                    key: '__other__',
+                    count: leafTracks.length,
+                    tracks: leafTracks,
+                    children: null,
+                })
+            }
+
+            return folders
+        }
+
+        return buildTree(currentTabItems, 0)
+    }, [currentTabItems, activeTab])
 
     // Navigate folder path recursively to get current view
     const { displayFolders, displayTracks: folderTracks, folderCompletedMap } = useMemo(() => {
@@ -1184,11 +1166,22 @@ const VaniPlayer = () => {
             <main ref={listRef} className="song-grid" style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}>
                 {folderPath.length > 0 && !debouncedSearch && folderStructure && (
                     <div className="breadcrumb-bar">
-                        <button className="breadcrumb-back" onClick={() => setFolderPath(p => p.slice(0, -1))}>
+                        <button className="breadcrumb-back" onClick={() => setFolderPath([])}>
                             <ChevronLeft size={16} />
-                            <span>Back</span>
+                            <span>Home</span>
                         </button>
-                        <div className="breadcrumb-path">{folderPath.join(' / ')}</div>
+                        {folderPath.map((seg, i) => (
+                            <React.Fragment key={i}>
+                                <span style={{ color: '#4b5563', fontSize: '0.7rem' }}>/</span>
+                                <button
+                                    className="breadcrumb-seg"
+                                    onClick={() => setFolderPath(folderPath.slice(0, i + 1))}
+                                    style={{ background: 'none', border: 'none', color: i === folderPath.length - 1 ? '#e5e7eb' : '#6b7280', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: '2px 4px', whiteSpace: 'nowrap' }}
+                                >
+                                    {seg}
+                                </button>
+                            </React.Fragment>
+                        ))}
                     </div>
                 )}
                 {displayFolders ? (
