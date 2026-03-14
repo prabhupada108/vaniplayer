@@ -725,6 +725,39 @@ const VaniPlayer = () => {
         return currentTabItems.filter(t => completedTracks.has(getTrackId(t))).length
     }, [currentTabItems, completedTracks])
 
+    // Extract sub-folder key from a track's URL relative to its Theme segment
+    const getSubFolder = React.useCallback((track, themeKey) => {
+        const url = String(track.link || '')
+        const parts = url.split('/')
+        const idx = parts.indexOf(themeKey)
+        // Return the next path segment after the theme key (if any, and not the filename)
+        if (idx >= 0 && idx + 1 < parts.length - 1) return parts[idx + 1]
+        return null
+    }, [])
+
+    // Build recursive folder tree from tracks
+    const buildSubFolders = React.useCallback((tracks, themeKey) => {
+        const subs = {}
+        const loose = []
+        for (const track of tracks) {
+            const sf = getSubFolder(track, themeKey)
+            if (sf) {
+                if (!subs[sf]) subs[sf] = []
+                subs[sf].push(track)
+            } else {
+                loose.push(track)
+            }
+        }
+        const subKeys = Object.keys(subs)
+        if (subKeys.length <= 1) return null // No meaningful sub-folders
+        return subKeys.sort().map(key => ({
+            name: formatThemeName(key),
+            key,
+            count: subs[key].length,
+            tracks: subs[key],
+        }))
+    }, [getSubFolder])
+
     // Build folder hierarchy from themes
     const folderStructure = useMemo(() => {
         if (!activeTab || !currentTabItems.length) return null
@@ -743,77 +776,76 @@ const VaniPlayer = () => {
                 { name: 'Bhagavad Gita', themes: categorize(t => /^Chapter-/.test(t) || t === 'More' || t === 'Bhagavad_Gita_Recitation') },
                 { name: 'Srimad Bhagavatam', themes: categorize(t => /^Canto-/.test(t) || t === 'SB_07') },
                 { name: 'Chaitanya Charitamrita', themes: categorize(t => t === 'Adi_Lila' || t === 'Madhya_Lila') },
-                { name: 'Day-wise Lectures', themes: categorize(t => /^\d+$/.test(t) || /^\d{2}_-_/.test(t)) },
+                { name: 'Month-wise Lectures', themes: categorize(t => /^\d+$/.test(t) || /^\d{2}_-_/.test(t)) },
                 { name: 'Conversations', themes: categorize(t => ['Morning_Walk', 'Room_Conversation', 'Interview', 'Arrival_Address', 'Departure_Address', 'Happening'].includes(t)) },
                 { name: 'Books & Texts', themes: categorize(t => ['Krishna_Book', 'Nectar_Of_Devotion', 'Isopanishad'].includes(t)) },
                 { name: 'Special', themes: categorize(t => ['Festivals', 'Stories', 'Various'].includes(t)) },
                 { name: 'Other Languages', themes: categorize(t => t === '02_-_Bengali' || t === '03_-_Hindi') },
                 { name: 'Translations', themes: categorize(t => t === 'by_Lilananda_Prabhu') },
             ].filter(c => c.themes.length > 0)
-            return categories.map(cat => ({
-                name: cat.name,
-                children: cat.themes.sort().map(t => ({
-                    name: formatThemeName(t),
-                    key: t,
-                    count: groups[t].length,
-                    tracks: groups[t]
-                })),
-                count: cat.themes.reduce((sum, t) => sum + groups[t].length, 0)
-            }))
+            return categories.map(cat => {
+                const children = cat.themes.sort().map(t => {
+                    const subs = buildSubFolders(groups[t], t)
+                    return {
+                        name: formatThemeName(t),
+                        key: t,
+                        count: groups[t].length,
+                        tracks: groups[t],
+                        children: subs,
+                    }
+                })
+                return {
+                    name: cat.name,
+                    children,
+                    count: cat.themes.reduce((sum, t) => sum + groups[t].length, 0)
+                }
+            })
         }
 
+        // Default tabs: top-level = themes, sub-level = URL-extracted sub-folders
         return themeKeys
             .sort((a, b) => formatThemeName(a).localeCompare(formatThemeName(b), undefined, { sensitivity: 'base' }))
-            .map(theme => ({
-                name: formatThemeName(theme),
-                key: theme,
-                count: groups[theme].length,
-                tracks: groups[theme],
-                children: null
-            }))
-    }, [currentTabItems, activeTab])
-
-    // Completed tracks per folder
-    const folderCompletedMap = useMemo(() => {
-        if (!folderStructure || !completedTracks.size) return {}
-        const map = {}
-        for (const folder of folderStructure) {
-            if (folder.children) {
-                let parentTotal = 0
-                for (const child of folder.children) {
-                    const c = child.tracks.filter(t => completedTracks.has(getTrackId(t))).length
-                    map[`${folder.name}/${child.name}`] = c
-                    parentTotal += c
+            .map(theme => {
+                const subs = buildSubFolders(groups[theme], theme)
+                return {
+                    name: formatThemeName(theme),
+                    key: theme,
+                    count: groups[theme].length,
+                    tracks: groups[theme],
+                    children: subs,
                 }
-                map[folder.name] = parentTotal
-            } else if (folder.tracks) {
-                map[folder.name] = folder.tracks.filter(t => completedTracks.has(getTrackId(t))).length
+            })
+    }, [currentTabItems, activeTab, buildSubFolders])
+
+    // Navigate folder path recursively to get current view
+    const { displayFolders, displayTracks: folderTracks, folderCompletedMap } = useMemo(() => {
+        if (debouncedSearch || !folderStructure) {
+            return { displayFolders: null, displayTracks: null, folderCompletedMap: {} }
+        }
+
+        // Walk the folder tree following folderPath
+        let currentLevel = folderStructure
+        for (let i = 0; i < folderPath.length; i++) {
+            const found = currentLevel.find(f => f.name === folderPath[i])
+            if (!found) return { displayFolders: currentLevel, displayTracks: null, folderCompletedMap: {} }
+            if (found.children) {
+                currentLevel = found.children
+            } else {
+                // Leaf folder — show its tracks
+                return { displayFolders: null, displayTracks: found.tracks, folderCompletedMap: {} }
             }
         }
-        return map
-    }, [folderStructure, completedTracks])
 
-    // Current display: folders or tracks based on navigation
-    const displayFolders = useMemo(() => {
-        if (debouncedSearch || !folderStructure) return null
-        if (folderPath.length === 0) return folderStructure
-        const parent = folderStructure.find(f => f.name === folderPath[0])
-        if (parent?.children && folderPath.length === 1) return parent.children
-        return null
-    }, [debouncedSearch, folderStructure, folderPath])
-
-    const folderTracks = useMemo(() => {
-        if (debouncedSearch || !folderStructure) return null
-        if (folderPath.length === 0) return null
-        const parent = folderStructure.find(f => f.name === folderPath[0])
-        if (!parent) return null
-        if (parent.children) {
-            if (folderPath.length === 1) return null
-            const sub = parent.children.find(f => f.name === folderPath[1])
-            return sub?.tracks || null
+        // Compute completed counts for current level
+        const cMap = {}
+        if (completedTracks.size) {
+            for (const folder of currentLevel) {
+                const allTracks = folder.tracks || []
+                cMap[folder.name] = allTracks.filter(t => completedTracks.has(getTrackId(t))).length
+            }
         }
-        return parent.tracks || null
-    }, [debouncedSearch, folderStructure, folderPath])
+        return { displayFolders: currentLevel, displayTracks: null, folderCompletedMap: cMap }
+    }, [debouncedSearch, folderStructure, folderPath, completedTracks])
 
     const effectiveItems = folderTracks || filteredData
 
@@ -1165,7 +1197,7 @@ const VaniPlayer = () => {
                             key={folder.name}
                             name={folder.name}
                             count={folder.count}
-                            completedCount={folderCompletedMap[folderPath.length > 0 ? `${folderPath[0]}/${folder.name}` : folder.name] || 0}
+                            completedCount={folderCompletedMap[folder.name] || 0}
                             onClick={() => setFolderPath(p => [...p, folder.name])}
                         />
                     ))
