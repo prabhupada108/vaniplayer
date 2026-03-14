@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
     Search, Play, Pause,
-    X, RotateCcw, RotateCw,
+    X, RotateCcw, RotateCw, Folder, ChevronRight, ChevronLeft,
     AlertCircle, Loader2, Link2, Share2, LogOut
 } from 'lucide-react'
 import prabhupadaImg from './assets/prabhupada.png'
@@ -114,6 +114,22 @@ const TrackList = React.memo(function TrackList({
     )
 })
 
+const FolderCard = React.memo(({ name, count, completedCount, onClick }) => (
+    <div className="folder-card" onClick={onClick}>
+        <div className="folder-icon-box">
+            <Folder size={24} />
+        </div>
+        <div className="folder-info">
+            <div className="folder-name">{name}</div>
+            <div className="folder-count">
+                {completedCount > 0 && <span style={{ color: '#4ade80' }}>{completedCount}/{count} listened</span>}
+                {completedCount === 0 && <span>{count} {count === 1 ? 'track' : 'tracks'}</span>}
+            </div>
+        </div>
+        <ChevronRight size={20} color="#6b7280" />
+    </div>
+))
+
 const getArtworkForTab = (tab) => {
     if (tab === 'HHBRSM') return hhbrsmImg
     if (tab === 'HHRNSM') return rnsmImg
@@ -181,6 +197,15 @@ const getTrackId = (track) => {
     return hashStr(raw)
 }
 
+const formatThemeName = (theme) => {
+    return String(theme)
+        .replace(/^Chapter-0?(\d+)/, 'Chapter $1')
+        .replace(/^Canto-0?(\d+)/, 'Canto $1')
+        .replace(/^SB_0?(\d+)/, 'SB $1')
+        .replace(/^(\d{2})_-_/, '$1 - ')
+        .replace(/_/g, ' ')
+}
+
 // Migrate old full-URL IDs to hashed IDs
 const migrateCompletedTracks = (key) => {
     try {
@@ -231,6 +256,7 @@ const VaniPlayer = () => {
     const [showDetail, setShowDetail] = useState(false)
     const [playbackError, setPlaybackError] = useState(null)
     const [shareNotice, setShareNotice] = useState('')
+    const [folderPath, setFolderPath] = useState([])
 
     const storageKey = currentUser ? `vani_progress_${currentUser}` : 'vani_progress'
     const completedKey = currentUser ? `vani_completed_${currentUser}` : 'vani_completed'
@@ -699,15 +725,116 @@ const VaniPlayer = () => {
         return currentTabItems.filter(t => completedTracks.has(getTrackId(t))).length
     }, [currentTabItems, completedTracks])
 
+    // Build folder hierarchy from themes
+    const folderStructure = useMemo(() => {
+        if (!activeTab || !currentTabItems.length) return null
+        const groups = {}
+        currentTabItems.forEach(item => {
+            const theme = item.Theme || 'Other'
+            if (!groups[theme]) groups[theme] = []
+            groups[theme].push(item)
+        })
+        const themeKeys = Object.keys(groups)
+        if (themeKeys.length <= 1) return null
+
+        if (activeTab === 'SP-Iskcon desire tree') {
+            const categorize = (test) => themeKeys.filter(test)
+            const categories = [
+                { name: 'Bhagavad Gita', themes: categorize(t => /^Chapter-/.test(t) || t === 'More' || t === 'Bhagavad_Gita_Recitation') },
+                { name: 'Srimad Bhagavatam', themes: categorize(t => /^Canto-/.test(t) || t === 'SB_07') },
+                { name: 'Chaitanya Charitamrita', themes: categorize(t => t === 'Adi_Lila' || t === 'Madhya_Lila') },
+                { name: 'Day-wise Lectures', themes: categorize(t => /^\d+$/.test(t) || /^\d{2}_-_/.test(t)) },
+                { name: 'Conversations', themes: categorize(t => ['Morning_Walk', 'Room_Conversation', 'Interview', 'Arrival_Address', 'Departure_Address', 'Happening'].includes(t)) },
+                { name: 'Books & Texts', themes: categorize(t => ['Krishna_Book', 'Nectar_Of_Devotion', 'Isopanishad'].includes(t)) },
+                { name: 'Special', themes: categorize(t => ['Festivals', 'Stories', 'Various'].includes(t)) },
+                { name: 'Other Languages', themes: categorize(t => t === '02_-_Bengali' || t === '03_-_Hindi') },
+                { name: 'Translations', themes: categorize(t => t === 'by_Lilananda_Prabhu') },
+            ].filter(c => c.themes.length > 0)
+            return categories.map(cat => ({
+                name: cat.name,
+                children: cat.themes.sort().map(t => ({
+                    name: formatThemeName(t),
+                    key: t,
+                    count: groups[t].length,
+                    tracks: groups[t]
+                })),
+                count: cat.themes.reduce((sum, t) => sum + groups[t].length, 0)
+            }))
+        }
+
+        return themeKeys
+            .sort((a, b) => formatThemeName(a).localeCompare(formatThemeName(b), undefined, { sensitivity: 'base' }))
+            .map(theme => ({
+                name: formatThemeName(theme),
+                key: theme,
+                count: groups[theme].length,
+                tracks: groups[theme],
+                children: null
+            }))
+    }, [currentTabItems, activeTab])
+
+    // Completed tracks per folder
+    const folderCompletedMap = useMemo(() => {
+        if (!folderStructure || !completedTracks.size) return {}
+        const map = {}
+        for (const folder of folderStructure) {
+            if (folder.children) {
+                let parentTotal = 0
+                for (const child of folder.children) {
+                    const c = child.tracks.filter(t => completedTracks.has(getTrackId(t))).length
+                    map[`${folder.name}/${child.name}`] = c
+                    parentTotal += c
+                }
+                map[folder.name] = parentTotal
+            } else if (folder.tracks) {
+                map[folder.name] = folder.tracks.filter(t => completedTracks.has(getTrackId(t))).length
+            }
+        }
+        return map
+    }, [folderStructure, completedTracks])
+
+    // Current display: folders or tracks based on navigation
+    const displayFolders = useMemo(() => {
+        if (debouncedSearch || !folderStructure) return null
+        if (folderPath.length === 0) return folderStructure
+        const parent = folderStructure.find(f => f.name === folderPath[0])
+        if (parent?.children && folderPath.length === 1) return parent.children
+        return null
+    }, [debouncedSearch, folderStructure, folderPath])
+
+    const folderTracks = useMemo(() => {
+        if (debouncedSearch || !folderStructure) return null
+        if (folderPath.length === 0) return null
+        const parent = folderStructure.find(f => f.name === folderPath[0])
+        if (!parent) return null
+        if (parent.children) {
+            if (folderPath.length === 1) return null
+            const sub = parent.children.find(f => f.name === folderPath[1])
+            return sub?.tracks || null
+        }
+        return parent.tracks || null
+    }, [debouncedSearch, folderStructure, folderPath])
+
+    const effectiveItems = folderTracks || filteredData
+
     const PAGE_SIZE = 40
     const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
-    const visibleItems = useMemo(() => filteredData.slice(0, visibleCount), [filteredData, visibleCount])
-    const canLoadMore = visibleCount < filteredData.length
+    const visibleItems = useMemo(() => (displayFolders ? [] : effectiveItems.slice(0, visibleCount)), [displayFolders, effectiveItems, visibleCount])
+    const canLoadMore = !displayFolders && visibleCount < effectiveItems.length
+
+    // Reset folder path on tab change
+    useEffect(() => { setFolderPath([]) }, [activeTab])
 
     useEffect(() => {
         if (listRef.current) listRef.current.scrollTop = 0
         setVisibleCount(PAGE_SIZE)
     }, [activeTab, search])
+
+    // Reset scroll and pagination on folder navigation
+    useEffect(() => {
+        if (listRef.current) listRef.current.scrollTop = 0
+        setVisibleCount(PAGE_SIZE)
+    }, [folderPath])
 
     const handlePlay = React.useCallback(async (track, trackTab) => {
         setPlaybackError(null);
@@ -1023,22 +1150,45 @@ const VaniPlayer = () => {
             </header>
 
             <main ref={listRef} className="song-grid" style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}>
-                <TrackList
-                    items={visibleItems}
-                    activeTab={activeTab}
-                    currentTrack={currentTrack}
-                    isPlaying={isPlaying}
-                    onPlay={handlePlay}
-                    artwork={activeTabArtwork}
-                    completedTracks={completedTracks}
-                    savedPositions={savedPositions}
-                />
-                {canLoadMore && (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 30px' }}>
-                        <button className="primary-btn" onClick={() => setVisibleCount(c => Math.min(filteredData.length, c + PAGE_SIZE))}>
-                            Load more
+                {folderPath.length > 0 && !debouncedSearch && folderStructure && (
+                    <div className="breadcrumb-bar">
+                        <button className="breadcrumb-back" onClick={() => setFolderPath(p => p.slice(0, -1))}>
+                            <ChevronLeft size={16} />
+                            <span>Back</span>
                         </button>
+                        <div className="breadcrumb-path">{folderPath.join(' / ')}</div>
                     </div>
+                )}
+                {displayFolders ? (
+                    displayFolders.map(folder => (
+                        <FolderCard
+                            key={folder.name}
+                            name={folder.name}
+                            count={folder.count}
+                            completedCount={folderCompletedMap[folderPath.length > 0 ? `${folderPath[0]}/${folder.name}` : folder.name] || 0}
+                            onClick={() => setFolderPath(p => [...p, folder.name])}
+                        />
+                    ))
+                ) : (
+                    <>
+                        <TrackList
+                            items={visibleItems}
+                            activeTab={activeTab}
+                            currentTrack={currentTrack}
+                            isPlaying={isPlaying}
+                            onPlay={handlePlay}
+                            artwork={activeTabArtwork}
+                            completedTracks={completedTracks}
+                            savedPositions={savedPositions}
+                        />
+                        {canLoadMore && (
+                            <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 30px' }}>
+                                <button className="primary-btn" onClick={() => setVisibleCount(c => Math.min(effectiveItems.length, c + PAGE_SIZE))}>
+                                    Load more
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </main>
 

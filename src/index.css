@@ -216,6 +216,104 @@ input, textarea {
   transition: transform 0.1s ease;
 }
 
+/* Folder Cards */
+.folder-card {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: rgba(28, 28, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
+  cursor: pointer;
+  min-height: 64px;
+  content-visibility: auto;
+  contain-intrinsic-size: 72px;
+  contain: layout style paint;
+}
+
+.folder-card:hover {
+  background: rgba(40, 40, 44, 0.95);
+  border-color: rgba(247, 197, 102, 0.2);
+}
+
+.folder-card:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease;
+}
+
+.folder-icon-box {
+  width: clamp(40px, 12vw, 48px);
+  height: clamp(40px, 12vw, 48px);
+  border-radius: 12px;
+  background: rgba(247, 197, 102, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: clamp(8px, 3vw, 16px);
+  flex-shrink: 0;
+  color: #f7c566;
+}
+
+.folder-info {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.folder-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #f5f5f7;
+  margin-bottom: 2px;
+}
+
+.folder-count {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+/* Breadcrumb Navigation */
+.breadcrumb-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0 8px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-darkest);
+}
+
+.breadcrumb-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px 14px;
+  color: #f7c566;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+
+.breadcrumb-back:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease;
+}
+
+.breadcrumb-path {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Song List */
 .song-grid {
   flex-grow: 1;
@@ -728,6 +826,21 @@ input, textarea {
   .song-grid {
     padding: 4px var(--space-sm) 130px;
     gap: 6px;
+  }
+
+  .folder-card {
+    padding: 10px var(--space-sm);
+    border-radius: 14px;
+  }
+
+  .folder-icon-box {
+    border-radius: 10px;
+  }
+
+  .breadcrumb-back {
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    border-radius: 8px;
   }
 
   .song-card {
