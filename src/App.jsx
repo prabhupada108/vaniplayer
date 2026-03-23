@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
     Search, Play, Pause,
     X, RotateCcw, RotateCw, Folder, ChevronRight, ChevronLeft,
-    AlertCircle, Loader2, Download, LogOut
+    AlertCircle, Loader2, Download, Share2, LogOut
 } from 'lucide-react'
 import prabhupadaImg from './assets/prabhupada.png'
 import rnsmImg from './assets/rnsm.png'
@@ -257,6 +257,7 @@ const VaniPlayer = () => {
     const [playbackRate, setPlaybackRate] = useState(1)
     const [showDetail, setShowDetail] = useState(false)
     const [playbackError, setPlaybackError] = useState(null)
+    const [shareNotice, setShareNotice] = useState('')
     const [downloadNotice, setDownloadNotice] = useState('')
     const [folderPath, setFolderPath] = useState([])
 
@@ -969,6 +970,26 @@ const VaniPlayer = () => {
         document.addEventListener('touchend', onEnd);
     };
 
+    const handleShare = async () => {
+        if (!currentTrack) return
+        const url = buildShareUrl(currentTrack)
+        if (navigator.share) {
+            try {
+                await navigator.share({ title: currentTrack.title, url })
+                return
+            } catch (e) {
+                if (e.name === 'AbortError') return
+            }
+        }
+        try {
+            await navigator.clipboard.writeText(url)
+            setShareNotice('Share link copied!')
+            setTimeout(() => setShareNotice(''), 2000)
+        } catch (e) {
+            window.prompt('Copy this link:', url)
+        }
+    }
+
     const handleDownload = async () => {
         if (!currentTrack) return
         const url = resolveUrl(currentTrack)
@@ -1285,11 +1306,19 @@ const VaniPlayer = () => {
                             </div>
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'clamp(8px, 3vw, 20px)' }}>
                                 <button className="util-btn" onClick={changeSpeed}>{playbackRate}x</button>
+                                <button className="icon-btn" onClick={handleShare} title="Copy share link">
+                                    <Share2 size={22} />
+                                </button>
                                 <button className="icon-btn" onClick={handleDownload} title="Download audio">
                                     <Download size={22} />
                                 </button>
                             </div>
                         </div>
+                        {shareNotice && (
+                            <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginTop: '10px', textAlign: 'right' }}>
+                                {shareNotice}
+                            </div>
+                        )}
                         {downloadNotice && (
                             <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginTop: '10px', textAlign: 'right' }}>
                                 {downloadNotice}
