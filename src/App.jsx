@@ -2,13 +2,14 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
     Search, Play, Pause,
     X, RotateCcw, RotateCw, Folder, ChevronRight, ChevronLeft,
-    AlertCircle, Loader2, Link2, Share2, LogOut
+    AlertCircle, Loader2, Download, Share2, LogOut
 } from 'lucide-react'
 import prabhupadaImg from './assets/prabhupada.png'
 import rnsmImg from './assets/rnsm.png'
 import hhbrsmImg from './assets/hhbrsm.png'
 import vaishnavaSongImg from './assets/vaishnavasong.png'
 import rspImg from './assets/RSP.jpeg'
+import aindraImg from './assets/aindra.jpg'
 import LoginScreen from './LoginScreen.jsx'
 import { isCloudEnabled, cloudLoad, cloudSave, cloudSaveBeacon } from './cloudSync.js'
 
@@ -136,6 +137,7 @@ const getArtworkForTab = (tab) => {
     if (tab === 'SP-Iskcon desire tree') return prabhupadaImg
     if (tab === 'Vaishnav Songs') return vaishnavaSongImg
     if (tab === 'HGRSP') return rspImg
+    if (tab === 'Aindra Pr') return aindraImg
     return prabhupadaImg
 }
 
@@ -1287,7 +1289,7 @@ const VaniPlayer = () => {
                                 <button className="icon-btn" onClick={handleShare} title="Copy share link">
                                     <Share2 size={22} />
                                 </button>
-                                <a href={resolveUrl(currentTrack)} target="_blank" rel="noreferrer" style={{ color: '#94a3b8' }}><Link2 size={22} /></a>
+                                <a href={resolveUrl(currentTrack)} download style={{ color: '#94a3b8' }}><Download size={22} /></a>
                             </div>
                         </div>
                         {shareNotice && (
