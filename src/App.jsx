@@ -257,6 +257,7 @@ const VaniPlayer = () => {
     const [playbackRate, setPlaybackRate] = useState(1)
     const [showDetail, setShowDetail] = useState(false)
     const [playbackError, setPlaybackError] = useState(null)
+    const [downloadNotice, setDownloadNotice] = useState('')
     const [folderPath, setFolderPath] = useState([])
 
     const storageKey = currentUser ? `vani_progress_${currentUser}` : 'vani_progress'
@@ -981,7 +982,9 @@ const VaniPlayer = () => {
             a.click()
             URL.revokeObjectURL(objectUrl)
         } catch (e) {
-            window.open(url)
+            setDownloadNotice('Direct download is blocked by the source site. Use the Download option in the opened audio tab.')
+            setTimeout(() => setDownloadNotice(''), 4000)
+            window.open(url, '_blank', 'noopener,noreferrer')
         }
     }
 
@@ -1287,6 +1290,11 @@ const VaniPlayer = () => {
                                 </button>
                             </div>
                         </div>
+                        {downloadNotice && (
+                            <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginTop: '10px', textAlign: 'right' }}>
+                                {downloadNotice}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
