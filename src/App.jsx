@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
     Search, Play, Pause,
     X, RotateCcw, RotateCw, Folder, ChevronRight, ChevronLeft,
-    AlertCircle, Loader2, Download, Share2, LogOut
+    AlertCircle, Loader2, Download, LogOut
 } from 'lucide-react'
 import prabhupadaImg from './assets/prabhupada.png'
 import rnsmImg from './assets/rnsm.png'
@@ -257,7 +257,6 @@ const VaniPlayer = () => {
     const [playbackRate, setPlaybackRate] = useState(1)
     const [showDetail, setShowDetail] = useState(false)
     const [playbackError, setPlaybackError] = useState(null)
-    const [shareNotice, setShareNotice] = useState('')
     const [folderPath, setFolderPath] = useState([])
 
     const storageKey = currentUser ? `vani_progress_${currentUser}` : 'vani_progress'
@@ -969,23 +968,20 @@ const VaniPlayer = () => {
         document.addEventListener('touchend', onEnd);
     };
 
-    const handleShare = async () => {
+    const handleDownload = async () => {
         if (!currentTrack) return
-        const url = buildShareUrl(currentTrack)
-        if (navigator.share) {
-            try {
-                await navigator.share({ title: currentTrack.title, url })
-                return
-            } catch (e) {
-                if (e.name === 'AbortError') return
-            }
-        }
+        const url = resolveUrl(currentTrack)
         try {
-            await navigator.clipboard.writeText(url)
-            setShareNotice('Share link copied!')
-            setTimeout(() => setShareNotice(''), 2000)
+            const response = await fetch(url)
+            const blob = await response.blob()
+            const objectUrl = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = objectUrl
+            a.download = url.split('/').pop() || 'audio.mp3'
+            a.click()
+            URL.revokeObjectURL(objectUrl)
         } catch (e) {
-            window.prompt('Copy this link:', url)
+            window.open(url)
         }
     }
 
@@ -1286,17 +1282,11 @@ const VaniPlayer = () => {
                             </div>
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'clamp(8px, 3vw, 20px)' }}>
                                 <button className="util-btn" onClick={changeSpeed}>{playbackRate}x</button>
-                                <button className="icon-btn" onClick={handleShare} title="Copy share link">
-                                    <Share2 size={22} />
+                                <button className="icon-btn" onClick={handleDownload} title="Download audio">
+                                    <Download size={22} />
                                 </button>
-                                <a href={resolveUrl(currentTrack)} download style={{ color: '#94a3b8' }}><Download size={22} /></a>
                             </div>
                         </div>
-                        {shareNotice && (
-                            <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginTop: '10px', textAlign: 'right' }}>
-                                {shareNotice}
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
