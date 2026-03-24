@@ -1,0 +1,89 @@
+<svg width="390" height="844" viewBox="0 0 390 844" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" rx="36" fill="#09090B"/>
+  <rect x="12" y="12" width="366" height="820" rx="28" fill="#0F1014" stroke="#2A2D33"/>
+  <rect x="36" y="28" width="120" height="6" rx="3" fill="#F4F4F5" fill-opacity=".9"/>
+
+  <rect x="24" y="54" width="342" height="118" rx="24" fill="url(#hero)"/>
+  <circle cx="76" cy="94" r="46" fill="#F7C566" fill-opacity=".08"/>
+  <circle cx="312" cy="80" r="42" fill="#94A3B8" fill-opacity=".10"/>
+  <text x="195" y="103" text-anchor="middle" fill="#F6C36E" font-size="28" font-family="Arial" font-weight="700">Vani Player</text>
+  <text x="195" y="127" text-anchor="middle" fill="#A1A1AA" font-size="10" font-family="Arial" letter-spacing="3">MOBILE COMPACT HEADER</text>
+  <rect x="44" y="142" width="302" height="1" fill="#ffffff" fill-opacity=".08"/>
+  <text x="195" y="159" text-anchor="middle" fill="#D4D4D8" font-size="11" font-family="Arial">Hearing-focused, less scrolling before content</text>
+
+  <rect x="24" y="186" width="342" height="44" rx="16" fill="#1B1C20" stroke="#2D3139"/>
+  <circle cx="48" cy="208" r="8" stroke="#6B7280" stroke-width="2"/>
+  <line x1="54" y1="214" x2="59" y2="219" stroke="#6B7280" stroke-width="2"/>
+  <text x="68" y="214" fill="#71717A" font-size="14" font-family="Arial">Search teachings...</text>
+
+  <g>
+    <rect x="24" y="242" width="88" height="36" rx="18" fill="#F5F5F5"/>
+    <text x="68" y="264" text-anchor="middle" fill="#111214" font-size="13" font-family="Arial" font-weight="700">Lectures</text>
+    <rect x="118" y="242" width="84" height="36" rx="18" fill="#1B1C20" stroke="#2D3139"/>
+    <text x="160" y="264" text-anchor="middle" fill="#A1A1AA" font-size="13" font-family="Arial" font-weight="700">Bhajans</text>
+    <rect x="208" y="242" width="72" height="36" rx="18" fill="#1B1C20" stroke="#2D3139"/>
+    <text x="244" y="264" text-anchor="middle" fill="#A1A1AA" font-size="13" font-family="Arial" font-weight="700">Talks</text>
+    <rect x="286" y="242" width="80" height="36" rx="18" fill="#1B1C20" stroke="#2D3139"/>
+    <text x="326" y="264" text-anchor="middle" fill="#A1A1AA" font-size="13" font-family="Arial" font-weight="700">More</text>
+  </g>
+
+  <text x="28" y="306" fill="#F5F5F5" font-size="12" font-family="Arial" font-weight="700">Resume Where You Left Off</text>
+  <rect x="24" y="318" width="342" height="66" rx="18" fill="#17181C" stroke="#333741"/>
+  <rect x="34" y="330" width="46" height="46" rx="10" fill="#D6A348"/>
+  <rect x="92" y="332" width="192" height="10" rx="5" fill="#F5F5F5"/>
+  <rect x="92" y="348" width="140" height="8" rx="4" fill="#A1A1AA"/>
+  <rect x="92" y="364" width="160" height="5" rx="2.5" fill="#2A2D33"/>
+  <rect x="92" y="364" width="88" height="5" rx="2.5" fill="#F7C566"/>
+  <rect x="314" y="334" width="40" height="34" rx="17" fill="#F5F5F5"/>
+  <polygon points="329,344 329,358 341,351" fill="#111214"/>
+
+  <g opacity=".95">
+    <rect x="24" y="398" width="342" height="72" rx="18" fill="#17181C" stroke="#2A2D33"/>
+    <rect x="36" y="410" width="48" height="48" rx="10" fill="#23262D"/>
+    <rect x="96" y="413" width="184" height="10" rx="5" fill="#F4F4F5"/>
+    <rect x="96" y="430" width="110" height="8" rx="4" fill="#8D95A3"/>
+    <rect x="96" y="446" width="92" height="4" rx="2" fill="#2A2D33"/>
+    <rect x="96" y="446" width="24" height="4" rx="2" fill="#4ADE80"/>
+    <circle cx="338" cy="434" r="11" fill="#F5F5F5"/>
+    <polygon points="335,429 335,439 343,434" fill="#111214"/>
+  </g>
+
+  <g opacity=".95">
+    <rect x="24" y="482" width="342" height="72" rx="18" fill="#17181C" stroke="#2A2D33"/>
+    <rect x="36" y="494" width="48" height="48" rx="10" fill="#23262D"/>
+    <rect x="96" y="497" width="210" height="10" rx="5" fill="#F4F4F5"/>
+    <rect x="96" y="514" width="136" height="8" rx="4" fill="#8D95A3"/>
+    <rect x="96" y="530" width="110" height="4" rx="2" fill="#2A2D33"/>
+    <rect x="96" y="530" width="54" height="4" rx="2" fill="#F7C566"/>
+    <circle cx="338" cy="518" r="11" fill="#23262D" stroke="#F7C566"/>
+    <polygon points="335,513 335,523 343,518" fill="#F7C566"/>
+  </g>
+
+  <g opacity=".95">
+    <rect x="24" y="566" width="342" height="72" rx="18" fill="#17181C" stroke="#2A2D33"/>
+    <rect x="36" y="578" width="48" height="48" rx="10" fill="#23262D"/>
+    <rect x="96" y="581" width="168" height="10" rx="5" fill="#A7F3D0"/>
+    <rect x="96" y="598" width="104" height="8" rx="4" fill="#8D95A3"/>
+    <text x="96" y="619" fill="#4ADE80" font-size="11" font-family="Arial" font-weight="700">Listened</text>
+    <circle cx="338" cy="602" r="11" fill="#4ADE80"/>
+    <path d="M333 602L337 606L344 598" stroke="#111214" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <rect x="24" y="708" width="342" height="96" rx="22" fill="#1A1B1F" stroke="#333741"/>
+  <rect x="25" y="796" width="340" height="4" rx="2" fill="#2D3139"/>
+  <rect x="25" y="796" width="122" height="4" rx="2" fill="#F7C566"/>
+  <rect x="38" y="724" width="54" height="54" rx="12" fill="#D6A348"/>
+  <rect x="104" y="730" width="168" height="10" rx="5" fill="#F5F5F5"/>
+  <rect x="104" y="747" width="92" height="8" rx="4" fill="#F7C566"/>
+  <circle cx="328" cy="751" r="24" fill="#F5F5F5"/>
+  <rect x="321" y="742" width="4" height="18" rx="2" fill="#111214"/>
+  <rect x="331" y="742" width="4" height="18" rx="2" fill="#111214"/>
+
+  <defs>
+    <linearGradient id="hero" x1="24" y1="54" x2="366" y2="172" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17181C"/>
+      <stop offset=".55" stop-color="#111216"/>
+      <stop offset="1" stop-color="#0D0E11"/>
+    </linearGradient>
+  </defs>
+</svg>

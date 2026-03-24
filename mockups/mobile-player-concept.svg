@@ -1,0 +1,73 @@
+<svg width="390" height="844" viewBox="0 0 390 844" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" rx="36" fill="#08090B"/>
+  <rect x="12" y="12" width="366" height="820" rx="28" fill="url(#bg)" stroke="#24272D"/>
+  <rect x="36" y="28" width="120" height="6" rx="3" fill="#F4F4F5" fill-opacity=".9"/>
+
+  <circle cx="195" cy="250" r="150" fill="#F7C566" fill-opacity=".08"/>
+  <circle cx="286" cy="202" r="96" fill="#94A3B8" fill-opacity=".08"/>
+  <circle cx="94" cy="230" r="88" fill="#3F3F46" fill-opacity=".12"/>
+
+  <circle cx="342" cy="68" r="22" fill="#1B1C20" stroke="#343842"/>
+  <path d="M336 68H348" stroke="#F4F4F5" stroke-width="2.5" stroke-linecap="round"/>
+
+  <rect x="65" y="132" width="260" height="260" rx="32" fill="#D6A348"/>
+  <rect x="65" y="132" width="260" height="260" rx="32" fill="url(#artShade)"/>
+  <rect x="82" y="149" width="226" height="226" rx="24" fill="#1C1D21" fill-opacity=".20"/>
+
+  <text x="195" y="444" text-anchor="middle" fill="#F5F5F5" font-size="24" font-family="Arial" font-weight="700">Bhagavad Gita 2.47</text>
+  <text x="195" y="471" text-anchor="middle" fill="#F7C566" font-size="11" font-family="Arial" font-weight="700" letter-spacing="2">SP-ISKCON DESIRE TREE • MOBILE PLAYER</text>
+
+  <g transform="translate(30 518)">
+    <rect width="330" height="30" rx="15" fill="#23262D"/>
+    <rect width="198" height="30" rx="15" fill="#F7C566"/>
+    <circle cx="198" cy="15" r="14" fill="#F5F5F5"/>
+  </g>
+  <text x="30" y="567" fill="#A1A1AA" font-size="13" font-family="Arial" font-weight="700">12:48</text>
+  <text x="327" y="567" text-anchor="end" fill="#A1A1AA" font-size="13" font-family="Arial" font-weight="700">44:09</text>
+
+  <g transform="translate(30 594)">
+    <circle cx="42" cy="42" r="34" fill="#1B1C20" stroke="#343842"/>
+    <path d="M35 37C35 37 42 39 49 37" stroke="#F5F5F5" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="42" y="48" text-anchor="middle" fill="#F5F5F5" font-size="12" font-family="Arial" font-weight="700">10</text>
+
+    <circle cx="165" cy="42" r="44" fill="#F5F5F5"/>
+    <rect x="158" y="29" width="5" height="26" rx="2.5" fill="#111214"/>
+    <rect x="168" y="29" width="5" height="26" rx="2.5" fill="#111214"/>
+
+    <circle cx="288" cy="42" r="34" fill="#1B1C20" stroke="#343842"/>
+    <path d="M280 37C280 37 288 39 295 37" stroke="#F5F5F5" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="288" y="48" text-anchor="middle" fill="#F5F5F5" font-size="12" font-family="Arial" font-weight="700">30</text>
+  </g>
+
+  <g transform="translate(42 700)">
+    <rect width="54" height="54" rx="18" fill="#1B1C20" stroke="#343842"/>
+    <text x="27" y="33" text-anchor="middle" fill="#F7C566" font-size="15" font-family="Arial" font-weight="700">1x</text>
+
+    <rect x="84" width="54" height="54" rx="18" fill="#1B1C20" stroke="#343842"/>
+    <path d="M103 27H118" stroke="#F5F5F5" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M109 21L103 27L109 33" stroke="#F5F5F5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <rect x="168" width="54" height="54" rx="18" fill="#1B1C20" stroke="#343842"/>
+    <path d="M195 18V34" stroke="#F5F5F5" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M188 28L195 35L202 28" stroke="#F5F5F5" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M186 39H204" stroke="#F5F5F5" stroke-width="2.5" stroke-linecap="round"/>
+
+    <rect x="252" y="7" width="78" height="40" rx="20" fill="#F7C566"/>
+    <text x="291" y="32" text-anchor="middle" fill="#111214" font-size="13" font-family="Arial" font-weight="700">Toast</text>
+  </g>
+
+  <rect x="66" y="770" width="258" height="34" rx="17" fill="#1A1B1F" stroke="#333741"/>
+  <text x="195" y="791" text-anchor="middle" fill="#F5F5F5" font-size="12" font-family="Arial" font-weight="700">Share link copied</text>
+
+  <defs>
+    <linearGradient id="bg" x1="12" y1="12" x2="378" y2="832" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#121318"/>
+      <stop offset=".65" stop-color="#090A0D"/>
+      <stop offset="1" stop-color="#101216"/>
+    </linearGradient>
+    <linearGradient id="artShade" x1="65" y1="132" x2="325" y2="392" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7C566" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#0D0E11" stop-opacity=".12"/>
+    </linearGradient>
+  </defs>
+</svg>

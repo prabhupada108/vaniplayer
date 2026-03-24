@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import {
     Search, Play, Pause,
-    X, RotateCcw, RotateCw, Folder, ChevronRight, ChevronLeft,
+    X, RotateCcw, RotateCw, Folder, ChevronRight, ChevronLeft, ChevronUp,
     AlertCircle, Loader2, Download, Share2, LogOut
 } from 'lucide-react'
 import prabhupadaImg from './assets/prabhupada.png'
@@ -75,7 +75,9 @@ const TrackList = React.memo(function TrackList({
     onPlay,
     artwork,
     completedTracks,
-    savedPositions
+    savedPositions,
+    currentTime,
+    duration
 }) {
     return (
         <>
@@ -83,8 +85,22 @@ const TrackList = React.memo(function TrackList({
                 const trackId = getTrackId(track)
                 const isCompleted = completedTracks.has(trackId)
                 const savedTime = savedPositions[trackId]
+                const isCurrent = currentTrack === track
+                const currentProgress = isCurrent && duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0
+                const statusLabel = isCurrent
+                    ? (isPlaying ? 'Playing now' : 'Ready to resume')
+                    : isCompleted
+                        ? 'Listened'
+                        : savedTime > 0
+                            ? `Resume ${formatTime(savedTime)}`
+                            : ''
                 return (
-                    <div key={track.link || `${track.title}-${i}`} className="song-card" onClick={() => onPlay(track, activeTab)}>
+                    <div
+                        key={track.link || `${track.title}-${i}`}
+                        className={`song-card${isCurrent ? ' current' : ''}${isCompleted ? ' completed' : ''}${!isCurrent && !isCompleted && savedTime > 0 ? ' resumable' : ''}`}
+                        onClick={() => onPlay(track, activeTab)}
+                    >
+                        <div className="song-card-accent" />
                         <div style={{ width: 'clamp(40px, 12vw, 52px)', height: 'clamp(40px, 12vw, 52px)', borderRadius: '8px', overflow: 'hidden', marginRight: 'clamp(8px, 3vw, 16px)', flexShrink: 0, position: 'relative' }}>
                             <img src={artwork} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Art" loading="lazy" />
                             {isCompleted && (
@@ -96,17 +112,25 @@ const TrackList = React.memo(function TrackList({
                             )}
                         </div>
                         <div className="song-info">
-                            <MarqueeTitle text={String(track.title)} className="song-title" style={{ color: currentTrack === track ? '#fbbf24' : isCompleted ? '#4ade80' : 'white' }} />
-                            <div className="song-meta">
-                                {String(track.Theme || activeTab).substring(0, 100)}
-                                {isCompleted && <span style={{ color: '#4ade80', marginLeft: '8px', fontSize: '0.65rem', fontWeight: 700 }}>Listened</span>}
-                                {!isCompleted && savedTime > 0 && (
-                                    <span style={{ color: '#f7c566', marginLeft: '8px', fontSize: '0.65rem', fontWeight: 700 }}>Resume {formatTime(savedTime)}</span>
-                                )}
-                            </div>
+                            <MarqueeTitle text={String(track.title)} className="song-title" style={{ color: isCurrent ? '#fbbf24' : isCompleted ? '#4ade80' : 'white' }} />
+                            <div className="song-meta">{String(track.Theme || activeTab).substring(0, 100)}</div>
+                            {(statusLabel || currentProgress > 0) && (
+                                <div className="song-status-row">
+                                    {statusLabel && (
+                                        <span className={`song-status-pill${isCurrent ? ' current' : ''}${isCompleted ? ' completed' : ''}${!isCurrent && !isCompleted && savedTime > 0 ? ' resumable' : ''}`}>
+                                            {statusLabel}
+                                        </span>
+                                    )}
+                                    {currentProgress > 0 && (
+                                        <div className="song-inline-progress">
+                                            <div className="song-inline-progress-fill" style={{ width: `${currentProgress}%` }} />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                        <div>
-                            {currentTrack === track && isPlaying ? <Pause size={20} fill="#fbbf24" stroke="none" /> : <Play size={20} style={isCompleted ? { color: '#4ade80' } : undefined} />}
+                        <div className="song-card-action">
+                            {isCurrent && isPlaying ? <Pause size={20} fill="#fbbf24" stroke="none" /> : <Play size={20} style={isCompleted ? { color: '#4ade80' } : undefined} />}
                         </div>
                     </div>
                 )
@@ -257,8 +281,9 @@ const VaniPlayer = () => {
     const [playbackRate, setPlaybackRate] = useState(1)
     const [showDetail, setShowDetail] = useState(false)
     const [playbackError, setPlaybackError] = useState(null)
-    const [shareNotice, setShareNotice] = useState('')
-    const [downloadNotice, setDownloadNotice] = useState('')
+    const [toastMessage, setToastMessage] = useState('')
+    const [headerCompact, setHeaderCompact] = useState(false)
+    const [searchFocused, setSearchFocused] = useState(false)
     const [folderPath, setFolderPath] = useState([])
 
     const storageKey = currentUser ? `vani_progress_${currentUser}` : 'vani_progress'
@@ -274,6 +299,7 @@ const VaniPlayer = () => {
     const slugLoadedRef = useRef(false)
     const cloudSyncedRef = useRef('')
     const completedTracksRef = useRef(new Set())
+    const toastTimeoutRef = useRef(null)
 
     const [completedTracks, setCompletedTracks] = useState(new Set())
 
@@ -845,12 +871,14 @@ const VaniPlayer = () => {
     useEffect(() => {
         if (listRef.current) listRef.current.scrollTop = 0
         setVisibleCount(PAGE_SIZE)
+        setHeaderCompact(false)
     }, [activeTab, search])
 
     // Reset scroll and pagination on folder navigation
     useEffect(() => {
         if (listRef.current) listRef.current.scrollTop = 0
         setVisibleCount(PAGE_SIZE)
+        setHeaderCompact(false)
     }, [folderPath])
 
     const handlePlay = React.useCallback(async (track, trackTab) => {
@@ -939,6 +967,14 @@ const VaniPlayer = () => {
         const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length]
         setPlaybackRate(next); audioRef.current.playbackRate = next;
     }
+    const showToast = React.useCallback((message, durationMs = 2800) => {
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+        setToastMessage(message)
+        toastTimeoutRef.current = setTimeout(() => {
+            setToastMessage('')
+            toastTimeoutRef.current = null
+        }, durationMs)
+    }, [])
 
     const [isDragging, setIsDragging] = useState(false)
 
@@ -983,8 +1019,7 @@ const VaniPlayer = () => {
         }
         try {
             await navigator.clipboard.writeText(url)
-            setShareNotice('Share link copied!')
-            setTimeout(() => setShareNotice(''), 2000)
+            showToast('Share link copied!')
         } catch (e) {
             window.prompt('Copy this link:', url)
         }
@@ -1002,12 +1037,21 @@ const VaniPlayer = () => {
             a.download = url.split('/').pop() || 'audio.mp3'
             a.click()
             URL.revokeObjectURL(objectUrl)
+            showToast('Download started')
         } catch (e) {
-            setDownloadNotice('Direct download is blocked by the source site. Use the Download option in the opened audio tab.')
-            setTimeout(() => setDownloadNotice(''), 4000)
+            showToast('Direct download is blocked by the source site. Use Download in the opened audio tab.', 4200)
             window.open(url, '_blank', 'noopener,noreferrer')
         }
     }
+
+    const handleListScroll = React.useCallback((e) => {
+        const nextCompact = e.currentTarget.scrollTop > 18
+        setHeaderCompact(prev => (prev === nextCompact ? prev : nextCompact))
+    }, [])
+
+    useEffect(() => () => {
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    }, [])
 
     useEffect(() => {
         const audio = audioRef.current
@@ -1115,7 +1159,7 @@ const VaniPlayer = () => {
 
     return (
         <div className="main-layout">
-            <header className="app-header" style={{ opacity: showDetail ? 0 : 1, transition: '0.3s', position: 'relative' }}>
+            <header className={`app-header${headerCompact || searchFocused ? ' compact' : ''}`} style={{ opacity: showDetail ? 0 : 1, transition: '0.3s', position: 'relative' }}>
 
                 <div className="hero-strip">
                     <div className="hero-overlay" />
@@ -1161,7 +1205,14 @@ const VaniPlayer = () => {
                 </div>
                 <div className="search-container">
                     <Search size={20} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#4b5563' }} />
-                    <input className="search-input" placeholder="Search teachings..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                    <input
+                        className="search-input"
+                        placeholder="Search teachings..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onFocus={() => setSearchFocused(true)}
+                        onBlur={() => setSearchFocused(false)}
+                    />
                     {search && (
                         <button
                             onClick={() => setSearch('')}
@@ -1177,7 +1228,7 @@ const VaniPlayer = () => {
                     ))}
                 </div>
                 {currentTabItems.length > 0 && (
-                    <div style={{ textAlign: 'center', fontSize: '0.65rem', color: '#6b7280', fontWeight: 600, padding: 0, lineHeight: '1.2' }}>
+                    <div className="tab-summary" style={{ textAlign: 'center', fontSize: '0.65rem', color: '#6b7280', fontWeight: 600, padding: 0, lineHeight: '1.2' }}>
                         {completedCount > 0 && <span style={{ color: '#4ade80' }}>{completedCount} listened</span>}
                         {completedCount > 0 && ' / '}
                         {currentTabItems.length} files
@@ -1185,7 +1236,7 @@ const VaniPlayer = () => {
                 )}
             </header>
 
-            <main ref={listRef} className="song-grid" style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}>
+            <main ref={listRef} className="song-grid" onScroll={handleListScroll} style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}>
                 {folderPath.length > 0 && !debouncedSearch && folderStructure && (
                     <div className="breadcrumb-bar">
                         <button className="breadcrumb-back" onClick={() => setFolderPath([])}>
@@ -1218,6 +1269,29 @@ const VaniPlayer = () => {
                     ))
                 ) : (
                     <>
+                        {!debouncedSearch && currentTrack && folderPath.length === 0 && (
+                            <button className="resume-spotlight" onClick={() => setShowDetail(true)}>
+                                <div className="resume-spotlight-copy">
+                                    <div className="resume-spotlight-label">Resume Where You Left Off</div>
+                                    <MarqueeTitle text={String(currentTrack.title)} className="resume-spotlight-title" />
+                                    <div className="resume-spotlight-meta">{currentTrackTab || activeTab}</div>
+                                </div>
+                                <div className="resume-spotlight-action">
+                                    {isPlaying ? <Pause size={20} fill="#111214" stroke="none" /> : <Play size={20} fill="#111214" stroke="none" />}
+                                </div>
+                            </button>
+                        )}
+                        {!visibleItems.length && (
+                            <div className="empty-state">
+                                <div className="empty-state-title">{debouncedSearch ? 'No matches found' : 'No tracks available'}</div>
+                                <div className="empty-state-copy">
+                                    {debouncedSearch ? 'Try a shorter keyword, clear search, or open the tab root.' : 'This section does not have playable items yet.'}
+                                </div>
+                                {debouncedSearch && (
+                                    <button className="primary-btn" onClick={() => setSearch('')}>Clear Search</button>
+                                )}
+                            </div>
+                        )}
                         <TrackList
                             items={visibleItems}
                             activeTab={activeTab}
@@ -1227,6 +1301,8 @@ const VaniPlayer = () => {
                             artwork={activeTabArtwork}
                             completedTracks={completedTracks}
                             savedPositions={savedPositions}
+                            currentTime={currentTime}
+                            duration={duration}
                         />
                         {canLoadMore && (
                             <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 30px' }}>
@@ -1241,6 +1317,9 @@ const VaniPlayer = () => {
 
             {currentTrack && !showDetail && (
                 <div className="mini-player" onClick={() => setShowDetail(true)}>
+                    <div className="mini-player-progress-track">
+                        <div className="mini-player-progress-fill" style={{ width: `${progress}%` }} />
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                         <div style={{ width: '44px', height: '44px', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
                             <img src={getArtworkForTab(currentTrackTab || activeTab)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1250,9 +1329,14 @@ const VaniPlayer = () => {
                             <div style={{ fontSize: '0.65rem', color: '#fbbf24', fontWeight: 700 }}>{currentTrackTab || activeTab}</div>
                         </div>
                     </div>
-                    <button className="icon-btn" onClick={(e) => { e.stopPropagation(); handlePlay(currentTrack, currentTrackTab || activeTab); }}>
-                        {isPlaying ? <Pause size={28} fill="white" /> : <Play size={28} fill="white" />}
-                    </button>
+                    <div className="mini-player-actions">
+                        <div className="mini-player-chevron">
+                            <ChevronUp size={16} />
+                        </div>
+                        <button className="icon-btn mini-player-toggle" onClick={(e) => { e.stopPropagation(); handlePlay(currentTrack, currentTrackTab || activeTab); }}>
+                            {isPlaying ? <Pause size={28} fill="white" /> : <Play size={28} fill="white" />}
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -1306,27 +1390,18 @@ const VaniPlayer = () => {
                             </div>
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 'clamp(8px, 3vw, 20px)' }}>
                                 <button className="util-btn" onClick={changeSpeed}>{playbackRate}x</button>
-                                <button className="icon-btn" onClick={handleShare} title="Copy share link">
+                                <button className="icon-btn player-action-btn" onClick={handleShare} title="Copy share link">
                                     <Share2 size={22} />
                                 </button>
-                                <button className="icon-btn" onClick={handleDownload} title="Download audio">
+                                <button className="icon-btn player-action-btn" onClick={handleDownload} title="Download audio">
                                     <Download size={22} />
                                 </button>
                             </div>
                         </div>
-                        {shareNotice && (
-                            <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginTop: '10px', textAlign: 'right' }}>
-                                {shareNotice}
-                            </div>
-                        )}
-                        {downloadNotice && (
-                            <div style={{ color: '#fbbf24', fontSize: '0.75rem', fontWeight: 700, marginTop: '10px', textAlign: 'right' }}>
-                                {downloadNotice}
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
+            <div className={`app-toast${toastMessage ? ' visible' : ''}`}>{toastMessage}</div>
         </div>
     )
 }
