@@ -65,7 +65,7 @@ function iframeLoad(params, timeout = 20000) {
                     console.log('[CloudSync] received:', params.action, msg.result)
                     resolve(msg.result)
                 }
-            } catch (e) {}
+            } catch { /* ignore unrelated postMessage payloads */ }
         }
 
         window.addEventListener('message', handler)
@@ -104,7 +104,7 @@ export function cloudSaveBeacon(data) {
         iframe.style.display = 'none'
         iframe.src = `${SYNC_URL}?${params}`
         document.body.appendChild(iframe)
-    } catch (e) {}
+    } catch { /* ignore beacon iframe failures during unload */ }
 }
 
 export async function cloudLoadUsers() {

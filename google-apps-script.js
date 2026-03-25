@@ -1,3 +1,5 @@
+/* global SpreadsheetApp, LockService, HtmlService */
+/* eslint-disable no-unused-vars */
 // ============================================================
 // GOOGLE APPS SCRIPT — Vani Player Cloud Sync
 // ============================================================
@@ -49,13 +51,13 @@ function doGet(e) {
       if (!userId) {
         result = { success: false, error: 'Missing userId' }
       } else {
-        var data = sheet.getDataRange().getValues()
-        var headers = data[0]
+        var rows = sheet.getDataRange().getValues()
+        var headers = rows[0]
         var found = false
-        for (var i = 1; i < data.length; i++) {
-          if (String(data[i][0]) === String(userId)) {
+        for (var rowIndex = 1; rowIndex < rows.length; rowIndex++) {
+          if (String(rows[rowIndex][0]) === String(userId)) {
             var row = {}
-            headers.forEach(function (h, j) { row[h] = data[i][j] })
+            headers.forEach(function (h, j) { row[h] = rows[rowIndex][j] })
             if (row.completedTracks) {
               try { row.completedTracks = JSON.parse(row.completedTracks) }
               catch (err) { row.completedTracks = [] }
@@ -71,10 +73,10 @@ function doGet(e) {
       }
 
     } else if (action === 'users') {
-      var data = sheet.getDataRange().getValues()
+      var userRows = sheet.getDataRange().getValues()
       var users = []
-      for (var i = 1; i < data.length; i++) {
-        var u = String(data[i][0]).trim()
+      for (var userIndex = 1; userIndex < userRows.length; userIndex++) {
+        var u = String(userRows[userIndex][0]).trim()
         if (u) users.push(u)
       }
       result = { success: true, users: users }
@@ -100,10 +102,10 @@ function doGet(e) {
     }
 
     // Always return HTML with postMessage (works from iframes, no CORS)
-    var payload = JSON.stringify({ _rid: rid, result: result })
+    var responsePayload = JSON.stringify({ _rid: rid, result: result })
     var html = '<html><body><script>'
-      + 'try{window.top.postMessage(' + payload + ',"*")}'
-      + 'catch(e){try{window.parent.postMessage(' + payload + ',"*")}catch(e2){}}'
+      + 'try{window.top.postMessage(' + responsePayload + ',"*")}'
+      + 'catch(e){try{window.parent.postMessage(' + responsePayload + ',"*")}catch(e2){}}'
       + '</script></body></html>'
     return HtmlService.createHtmlOutput(html)
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { User, ArrowRight } from 'lucide-react';
 
 const LoginScreen = ({ onLogin }) => {

@@ -75,9 +75,7 @@ const TrackList = React.memo(function TrackList({
     onPlay,
     artwork,
     completedTracks,
-    savedPositions,
-    currentTime,
-    duration
+    savedPositions
 }) {
     return (
         <>
@@ -86,7 +84,6 @@ const TrackList = React.memo(function TrackList({
                 const isCompleted = completedTracks.has(trackId)
                 const savedTime = savedPositions[trackId]
                 const isCurrent = currentTrack === track
-                const currentProgress = isCurrent && duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0
                 const statusLabel = isCurrent
                     ? (isPlaying ? 'Playing now' : 'Ready to resume')
                     : isCompleted
@@ -114,18 +111,11 @@ const TrackList = React.memo(function TrackList({
                         <div className="song-info">
                             <MarqueeTitle text={String(track.title)} className="song-title" style={{ color: isCurrent ? '#fbbf24' : isCompleted ? '#4ade80' : 'white' }} />
                             <div className="song-meta">{String(track.Theme || activeTab).substring(0, 100)}</div>
-                            {(statusLabel || currentProgress > 0) && (
+                            {statusLabel && (
                                 <div className="song-status-row">
-                                    {statusLabel && (
-                                        <span className={`song-status-pill${isCurrent ? ' current' : ''}${isCompleted ? ' completed' : ''}${!isCurrent && !isCompleted && savedTime > 0 ? ' resumable' : ''}`}>
-                                            {statusLabel}
-                                        </span>
-                                    )}
-                                    {currentProgress > 0 && (
-                                        <div className="song-inline-progress">
-                                            <div className="song-inline-progress-fill" style={{ width: `${currentProgress}%` }} />
-                                        </div>
-                                    )}
+                                    <span className={`song-status-pill${isCurrent ? ' current' : ''}${isCompleted ? ' completed' : ''}${!isCurrent && !isCompleted && savedTime > 0 ? ' resumable' : ''}`}>
+                                        {statusLabel}
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -154,6 +144,7 @@ const FolderCard = React.memo(({ name, count, completedCount, onClick }) => (
         <ChevronRight size={20} color="#6b7280" />
     </div>
 ))
+FolderCard.displayName = 'FolderCard'
 
 const getArtworkForTab = (tab) => {
     if (tab === 'HHBRSM') return hhbrsmImg
@@ -248,7 +239,7 @@ const migrateCompletedTracks = (key) => {
             return new Set(deduped)
         }
         return new Set(arr)
-    } catch (e) {
+    } catch {
         return new Set()
     }
 }
@@ -258,7 +249,7 @@ const VaniPlayer = () => {
         try {
             const stored = localStorage.getItem('vani_current_user')
             return stored ? stored.toLowerCase() : null
-        } catch (e) {
+        } catch {
             return null
         }
     })
@@ -308,7 +299,7 @@ const VaniPlayer = () => {
         try {
             const raw = localStorage.getItem(currentUser ? `vani_positions_${currentUser}` : 'vani_positions')
             return raw ? JSON.parse(raw) : {}
-        } catch (e) { return {} }
+        } catch { return {} }
     })
 
     const saveTrackPosition = React.useCallback((track, time) => {
@@ -316,7 +307,7 @@ const VaniPlayer = () => {
         const id = getTrackId(track)
         setSavedPositions(prev => {
             const next = { ...prev, [id]: Math.floor(time) }
-            try { localStorage.setItem(positionsKey, JSON.stringify(next)) } catch (e) {}
+            try { localStorage.setItem(positionsKey, JSON.stringify(next)) } catch { /* ignore storage write errors */ }
             return next
         })
     }, [positionsKey])
@@ -327,7 +318,7 @@ const VaniPlayer = () => {
         setSavedPositions(prev => {
             const next = { ...prev }
             delete next[id]
-            try { localStorage.setItem(positionsKey, JSON.stringify(next)) } catch (e) {}
+            try { localStorage.setItem(positionsKey, JSON.stringify(next)) } catch { /* ignore storage write errors */ }
             return next
         })
     }, [positionsKey])
@@ -340,7 +331,7 @@ const VaniPlayer = () => {
         try {
             const raw = localStorage.getItem(positionsKey)
             setSavedPositions(raw ? JSON.parse(raw) : {})
-        } catch (e) { setSavedPositions({}) }
+        } catch { setSavedPositions({}) }
     }, [positionsKey])
 
     const handleLogin = (userId) => {
@@ -350,7 +341,7 @@ const VaniPlayer = () => {
         cloudSyncedRef.current = ''
         try {
             localStorage.setItem('vani_current_user', normalizedId)
-        } catch (e) {}
+        } catch { /* ignore storage write errors */ }
     }
 
     const handleLogout = () => {
@@ -363,7 +354,7 @@ const VaniPlayer = () => {
         setShowDetail(false)
         try {
             localStorage.removeItem('vani_current_user')
-        } catch (e) {
+        } catch {
             // Ignore storage failures
         }
     }
@@ -391,7 +382,7 @@ const VaniPlayer = () => {
             next.add(id)
             try {
                 localStorage.setItem(completedKey, JSON.stringify([...next]))
-            } catch (e) {}
+            } catch { /* ignore storage write errors */ }
             return next
         })
     }, [completedKey])
@@ -412,7 +403,7 @@ const VaniPlayer = () => {
         }
         try {
             localStorage.setItem(storageKey, JSON.stringify(state))
-        } catch (e) {}
+        } catch { /* ignore storage write errors */ }
         // Also save per-track position
         if (time > 5) saveTrackPosition(currentTrack, time)
 
@@ -486,7 +477,7 @@ const VaniPlayer = () => {
                 }, 300)
             }
             loadSaved()
-        } catch (e) {
+        } catch {
             lastRestoredKeyRef.current = storageKey
         }
     }, [tabList, tabData, fetchTabData, storageKey])
@@ -508,7 +499,7 @@ const VaniPlayer = () => {
                 setCompletedTracks(prev => {
                     const merged = new Set([...prev, ...cloudIds])
                     if (merged.size === prev.size) return prev
-                    try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch (e) {}
+                    try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch { /* ignore storage write errors */ }
                     return merged
                 })
             }
@@ -518,7 +509,7 @@ const VaniPlayer = () => {
             try {
                 const localRaw = localStorage.getItem(storageKey)
                 if (localRaw) localTime = JSON.parse(localRaw)?.lastPlayed || 0
-            } catch (e) {}
+            } catch { /* ignore local progress parse errors */ }
 
             const cloudTime = cloudData.lastPlayed ? new Date(cloudData.lastPlayed).getTime() : 0
 
@@ -553,7 +544,7 @@ const VaniPlayer = () => {
                             time: Number(cloudData.time) || 0,
                             lastPlayed: cloudTime
                         }))
-                    } catch (e) {}
+                    } catch { /* ignore storage write errors */ }
                 }
             }
         }
@@ -563,7 +554,7 @@ const VaniPlayer = () => {
     // Auto-Save Progress (Local) — every 3s + on page hide/close
     useEffect(() => {
         if (!currentUser || !currentTrack) return;
-        const interval = setInterval(saveProgressNow, 3000);
+        const interval = setInterval(saveProgressNow, 10000);
         return () => clearInterval(interval);
     }, [currentUser, currentTrack, saveProgressNow])
 
@@ -581,7 +572,7 @@ const VaniPlayer = () => {
                         setCompletedTracks(prev => {
                             const merged = new Set([...prev, ...cloudIds])
                             if (merged.size === prev.size) return prev
-                            try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch (e) {}
+                            try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch { /* ignore storage write errors */ }
                             return merged
                         })
                     }).catch(() => {})
@@ -609,7 +600,7 @@ const VaniPlayer = () => {
             window.removeEventListener('beforeunload', handleBeforeUnload)
             document.removeEventListener('visibilitychange', handleVisibility)
         }
-    }, [saveProgressNow, currentUser, currentTrack, activeTab, currentTrackTab])
+    }, [saveProgressNow, currentUser, currentTrack, activeTab, currentTrackTab, completedKey, fetchTabData])
 
     // Periodic track list refresh (every 5 min) — picks up new tracks without page reload
     useEffect(() => {
@@ -647,11 +638,11 @@ const VaniPlayer = () => {
                     setCompletedTracks(prev => {
                         const merged = new Set([...prev, ...cloudIds])
                         if (merged.size === prev.size) return prev
-                        try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch (e) {}
+                        try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch { /* ignore storage write errors */ }
                         return merged
                     })
                 }
-            } catch (e) {}
+            } catch { /* ignore periodic cloud sync errors */ }
         }, 2 * 60 * 1000)
         return () => clearInterval(interval)
     }, [currentUser, completedKey])
@@ -708,7 +699,7 @@ const VaniPlayer = () => {
                     setCurrentTrack(found)
                     setCurrentTrackTab(entry.tab)
                 }
-            } catch (e) {
+            } catch {
                 slugLoadedRef.current = true
                 setLoadError("Sync failed")
             }
@@ -894,7 +885,7 @@ const VaniPlayer = () => {
                 try {
                     await audioRef.current.play();
                     setIsPlaying(true);
-                } catch (e) {
+                } catch {
                     // Audio not loaded yet — reload and wait for it before retrying
                     audioRef.current.src = resolved;
                     audioRef.current.load();
@@ -907,7 +898,7 @@ const VaniPlayer = () => {
                         });
                         await audioRef.current.play();
                         setIsPlaying(true);
-                    } catch (e2) {
+                    } catch {
                         setPlaybackError("Couldn't resume. Tap the track again.");
                     }
                 }
@@ -949,17 +940,17 @@ const VaniPlayer = () => {
                     completedTracks: [...completedTracksRef.current]
                 })
             }
-        } catch (e) {
+        } catch {
             if (!resolved.includes('drive.google.com')) {
                 const filename = resolved.split('/').pop().replace(/ /g, '%20');
                 const attempts = [`https://audio.iskcondesiretree.com/06_-_More/01_-_ISKCON_Pune/2025/${filename}`, `https://audio.iskcondesiretree.com/06_-_More/07_-_ISKCON_Punjabi_Baugh/2025/${filename}`];
                 for (const alt of attempts) {
-                    try { audioRef.current.src = alt; await audioRef.current.play(); setIsPlaying(true); setPlaybackError(null); return; } catch (err) { continue; }
+                    try { audioRef.current.src = alt; await audioRef.current.play(); setIsPlaying(true); setPlaybackError(null); return; } catch { continue; }
                 }
             }
             setPlaybackError("Link unavailable.");
         }
-    }, [currentTrack, currentTrackTab, isPlaying, playbackRate, saveProgressNow, saveTrackPosition, savedPositions])
+    }, [activeTab, currentTrack, currentTrackTab, currentUser, isPlaying, playbackRate, saveProgressNow, saveTrackPosition, savedPositions])
 
     const skip = (s) => { if (audioRef.current.duration) audioRef.current.currentTime += s; }
     const changeSpeed = () => {
@@ -977,24 +968,42 @@ const VaniPlayer = () => {
     }, [])
 
     const [isDragging, setIsDragging] = useState(false)
+    const dragProgressRef = useRef(null)
 
-    const seekFromEvent = (e) => {
-        if (!progressRef.current || !audioRef.current.duration) return;
+    const getPosFromEvent = (e) => {
+        if (!progressRef.current || !audioRef.current.duration) return null;
         const r = progressRef.current.getBoundingClientRect();
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const pos = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-        audioRef.current.currentTime = pos * audioRef.current.duration;
+        return Math.max(0, Math.min(1, (clientX - r.left) / r.width));
     };
 
-    const handleSeek = (e) => seekFromEvent(e);
+    const handleSeek = (e) => {
+        const pos = getPosFromEvent(e);
+        if (pos !== null) audioRef.current.currentTime = pos * audioRef.current.duration;
+    };
 
     const handleDragStart = (e) => {
-        e.preventDefault();
+        if (e.type === 'mousedown') e.preventDefault();
         setIsDragging(true);
-        seekFromEvent(e);
-        const onMove = (ev) => seekFromEvent(ev);
+        const pos = getPosFromEvent(e);
+        if (pos !== null) {
+            dragProgressRef.current = pos;
+            setProgress(pos * 100);
+        }
+        const onMove = (ev) => {
+            ev.preventDefault();
+            const p = getPosFromEvent(ev);
+            if (p !== null) {
+                dragProgressRef.current = p;
+                setProgress(p * 100);
+            }
+        };
         const onEnd = () => {
             setIsDragging(false);
+            if (dragProgressRef.current !== null && audioRef.current.duration) {
+                audioRef.current.currentTime = dragProgressRef.current * audioRef.current.duration;
+            }
+            dragProgressRef.current = null;
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onEnd);
             document.removeEventListener('touchmove', onMove);
@@ -1020,28 +1029,21 @@ const VaniPlayer = () => {
         try {
             await navigator.clipboard.writeText(url)
             showToast('Share link copied!')
-        } catch (e) {
+        } catch {
             window.prompt('Copy this link:', url)
         }
     }
 
-    const handleDownload = async () => {
+    const handleDownload = () => {
         if (!currentTrack) return
         const url = resolveUrl(currentTrack)
-        try {
-            const response = await fetch(url)
-            const blob = await response.blob()
-            const objectUrl = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = objectUrl
-            a.download = url.split('/').pop() || 'audio.mp3'
-            a.click()
-            URL.revokeObjectURL(objectUrl)
-            showToast('Download started')
-        } catch (e) {
-            showToast('Direct download is blocked by the source site. Use Download in the opened audio tab.', 4200)
-            window.open(url, '_blank', 'noopener,noreferrer')
-        }
+        const a = document.createElement('a')
+        a.href = url
+        a.download = decodeURIComponent(url.split('/').pop() || 'audio.mp3')
+        a.target = '_blank'
+        a.rel = 'noopener noreferrer'
+        a.click()
+        showToast('Download started')
     }
 
     const handleListScroll = React.useCallback((e) => {
@@ -1058,11 +1060,11 @@ const VaniPlayer = () => {
         let rafId = null
         const update = (force = false) => {
             const now = Date.now()
-            if (!force && now - lastProgressUpdateRef.current < 250) return
+            if (!force && now - lastProgressUpdateRef.current < 500) return
             lastProgressUpdateRef.current = now
             if (rafId) cancelAnimationFrame(rafId)
             rafId = requestAnimationFrame(() => {
-                setProgress(isNaN(audio.currentTime / audio.duration) ? 0 : (audio.currentTime / audio.duration) * 100)
+                if (dragProgressRef.current === null) setProgress(isNaN(audio.currentTime / audio.duration) ? 0 : (audio.currentTime / audio.duration) * 100)
                 setCurrentTime(audio.currentTime)
                 setDuration(audio.duration || 0)
             })
@@ -1121,7 +1123,7 @@ const VaniPlayer = () => {
                 navigator.mediaSession.setActionHandler('seekbackward', null)
                 navigator.mediaSession.setActionHandler('seekforward', null)
                 navigator.mediaSession.setActionHandler('seekto', null)
-            } catch (e) {}
+            } catch { /* media session handlers are optional */ }
         }
     }, [currentTrack, currentTrackTab, activeTab, handlePlay, saveProgressNow])
 
@@ -1151,7 +1153,7 @@ const VaniPlayer = () => {
     if (loadError) return (
         <div className="loading-screen">
             <AlertCircle size={48} className="error-icon" />
-            <h2 className="loading-title">Couldn't sync the archive</h2>
+            <h2 className="loading-title">Couldn&apos;t sync the archive</h2>
             <p className="error-text">{String(loadError)}</p>
             <button className="primary-btn" onClick={() => window.location.reload()}>Try Again</button>
         </div>
@@ -1301,8 +1303,6 @@ const VaniPlayer = () => {
                             artwork={activeTabArtwork}
                             completedTracks={completedTracks}
                             savedPositions={savedPositions}
-                            currentTime={currentTime}
-                            duration={duration}
                         />
                         {canLoadMore && (
                             <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 30px' }}>
