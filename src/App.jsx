@@ -1241,22 +1241,13 @@ const VaniPlayer = () => {
             <main ref={listRef} className="song-grid" onScroll={handleListScroll} style={{ flexGrow: 1, overflowY: 'auto', opacity: showDetail ? 0 : 1 }}>
                 {folderPath.length > 0 && !debouncedSearch && folderStructure && (
                     <div className="breadcrumb-bar">
-                        <button className="breadcrumb-back" onClick={() => setFolderPath([])}>
-                            <ChevronLeft size={16} />
-                            <span>Home</span>
+                        <button className="breadcrumb-back" onClick={() => setFolderPath(p => p.slice(0, -1))}>
+                            <ChevronLeft size={18} />
+                            <span>{folderPath.length > 1 ? folderPath[folderPath.length - 2] : 'Home'}</span>
                         </button>
-                        {folderPath.map((seg, i) => (
-                            <React.Fragment key={i}>
-                                <span style={{ color: '#4b5563', fontSize: '0.7rem' }}>/</span>
-                                <button
-                                    className="breadcrumb-seg"
-                                    onClick={() => setFolderPath(folderPath.slice(0, i + 1))}
-                                    style={{ background: 'none', border: 'none', color: i === folderPath.length - 1 ? '#e5e7eb' : '#6b7280', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: '2px 4px', whiteSpace: 'nowrap' }}
-                                >
-                                    {seg}
-                                </button>
-                            </React.Fragment>
-                        ))}
+                        <div style={{ flex: 1, textAlign: 'right', color: '#e5e7eb', fontSize: '0.8rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {folderPath[folderPath.length - 1]}
+                        </div>
                     </div>
                 )}
                 {displayFolders ? (
