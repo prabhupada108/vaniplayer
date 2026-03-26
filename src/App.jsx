@@ -9,7 +9,7 @@ import rnsmImg from './assets/rnsm.png'
 import hhbrsmImg from './assets/hhbrsm.png'
 import vaishnavaSongImg from './assets/vaishnavasong.png'
 import rspImg from './assets/RSP.jpeg'
-import aindraImg from './assets/aindra.jpg'
+import rdsmImg from './assets/RDSM.jpg'
 import LoginScreen from './LoginScreen.jsx'
 import { isCloudEnabled, cloudLoad, cloudSave, cloudSaveBeacon } from './cloudSync.js'
 
@@ -152,7 +152,7 @@ const getArtworkForTab = (tab) => {
     if (tab === 'SP-Iskcon desire tree') return prabhupadaImg
     if (tab === 'Vaishnav Songs') return vaishnavaSongImg
     if (tab === 'HGRSP') return rspImg
-    if (tab === 'Aindra Pr') return aindraImg
+    if (tab === 'HHRDSM') return rdsmImg
     return prabhupadaImg
 }
 
