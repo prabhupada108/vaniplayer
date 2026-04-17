@@ -10,6 +10,7 @@ import hhbrsmImg from './assets/hhbrsm.png'
 import vaishnavaSongImg from './assets/vaishnavasong.png'
 import rspImg from './assets/RSP.jpeg'
 import rdsmImg from './assets/RDSM.jpg'
+import aindraImg from './assets/aindra.jpg'
 import LoginScreen from './LoginScreen.jsx'
 import { isCloudEnabled, cloudLoad, cloudSave, cloudSaveBeacon } from './cloudSync.js'
 
@@ -153,6 +154,7 @@ const getArtworkForTab = (tab) => {
     if (tab === 'Vaishnav Songs') return vaishnavaSongImg
     if (tab === 'HGRSP') return rspImg
     if (tab === 'HHRDSM') return rdsmImg
+    if (tab === 'Aindra Prabhu') return aindraImg
     return prabhupadaImg
 }
 
