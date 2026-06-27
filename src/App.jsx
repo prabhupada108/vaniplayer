@@ -196,7 +196,8 @@ const buildShareUrl = (track) => {
     const basePath = getBasePath()
     const base = new URL(basePath, window.location.origin).toString()
     const slug = track?.title ? slugifyTitle(track.title) : ''
-    return slug ? `${base}${encodeURIComponent(slug)}` : base
+    const uniqueSlug = slug && track?.link ? `${slug}-${getTrackId(track)}` : slug
+    return uniqueSlug ? `${base}${encodeURIComponent(uniqueSlug)}` : base
 }
 
 // Short hash for track IDs — keeps localStorage and cloud compact
@@ -373,26 +374,29 @@ const VaniPlayer = () => {
 
     // Load completed tracks when user changes (migrates old full-URL IDs to hashes)
     useEffect(() => {
-        setCompletedTracks(migrateCompletedTracks(completedKey))
+        const migrated = migrateCompletedTracks(completedKey)
+        completedTracksRef.current = migrated
+        setCompletedTracks(migrated)
     }, [completedKey])
 
     const markCompleted = React.useCallback((track) => {
-        if (!track) return
+        if (!track) return completedTracksRef.current
         const id = getTrackId(track)
-        setCompletedTracks(prev => {
-            const next = new Set(prev)
-            next.add(id)
-            try {
-                localStorage.setItem(completedKey, JSON.stringify([...next]))
-            } catch { /* ignore storage write errors */ }
-            return next
-        })
+        const next = new Set(completedTracksRef.current)
+        next.add(id)
+        completedTracksRef.current = next
+        try {
+            localStorage.setItem(completedKey, JSON.stringify([...next]))
+        } catch { /* ignore storage write errors */ }
+        setCompletedTracks(next)
+        return next
     }, [completedKey])
 
-    const saveProgressNow = React.useCallback((forceCloud = false) => {
+    const saveProgressNow = React.useCallback((forceCloud = false, options = {}) => {
         if (!currentUser || !currentTrack) return
         const tabForTrack = currentTrackTab || activeTab
-        const time = audioRef.current ? audioRef.current.currentTime : 0
+        const time = options.time ?? (audioRef.current ? audioRef.current.currentTime : 0)
+        const completedForCloud = options.completedTracks || [...completedTracksRef.current]
         const state = {
             tab: tabForTrack,
             track: {
@@ -407,7 +411,7 @@ const VaniPlayer = () => {
             localStorage.setItem(storageKey, JSON.stringify(state))
         } catch { /* ignore storage write errors */ }
         // Also save per-track position
-        if (time > 5) saveTrackPosition(currentTrack, time)
+        if (options.savePosition !== false && time > 5) saveTrackPosition(currentTrack, time)
 
         // Cloud sync (debounced: every 30s unless forced)
         if (isCloudEnabled()) {
@@ -420,8 +424,8 @@ const VaniPlayer = () => {
                     trackTitle: currentTrack.title,
                     trackTheme: currentTrack.Theme,
                     trackLink: currentTrack.link,
-                    time: audioRef.current ? audioRef.current.currentTime : 0,
-                    completedTracks: [...completedTracksRef.current]
+                    time,
+                    completedTracks: completedForCloud
                 })
             }
         }
@@ -501,6 +505,7 @@ const VaniPlayer = () => {
                 setCompletedTracks(prev => {
                     const merged = new Set([...prev, ...cloudIds])
                     if (merged.size === prev.size) return prev
+                    completedTracksRef.current = merged
                     try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch { /* ignore storage write errors */ }
                     return merged
                 })
@@ -574,6 +579,7 @@ const VaniPlayer = () => {
                         setCompletedTracks(prev => {
                             const merged = new Set([...prev, ...cloudIds])
                             if (merged.size === prev.size) return prev
+                            completedTracksRef.current = merged
                             try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch { /* ignore storage write errors */ }
                             return merged
                         })
@@ -640,6 +646,7 @@ const VaniPlayer = () => {
                     setCompletedTracks(prev => {
                         const merged = new Set([...prev, ...cloudIds])
                         if (merged.size === prev.size) return prev
+                        completedTracksRef.current = merged
                         try { localStorage.setItem(completedKey, JSON.stringify([...merged])) } catch { /* ignore storage write errors */ }
                         return merged
                     })
@@ -1074,11 +1081,16 @@ const VaniPlayer = () => {
         const handleLoadedMetadata = () => update(true)
         const handleEnded = () => {
             setIsPlaying(false)
+            let completedAfter = completedTracksRef.current
             if (currentTrack) {
-                markCompleted(currentTrack)
+                completedAfter = markCompleted(currentTrack)
                 clearTrackPosition(currentTrack) // Clear saved position for completed tracks
             }
-            saveProgressNow(true)
+            saveProgressNow(true, {
+                time: 0,
+                savePosition: false,
+                completedTracks: [...completedAfter]
+            })
         }
         const handleError = () => {
             if (isPlaying) {
