@@ -10,7 +10,6 @@ import hhbrsmImg from './assets/hhbrsm.png'
 import vaishnavaSongImg from './assets/vaishnavasong.png'
 import rspImg from './assets/RSP.jpeg'
 import rdsmImg from './assets/RDSM.jpg'
-import aindraImg from './assets/aindra.jpg'
 import LoginScreen from './LoginScreen.jsx'
 import { isCloudEnabled, cloudLoad, cloudSave, cloudSaveBeacon } from './cloudSync.js'
 
@@ -84,7 +83,7 @@ const TrackList = React.memo(function TrackList({
                 const trackId = getTrackId(track)
                 const isCompleted = completedTracks.has(trackId)
                 const savedTime = savedPositions[trackId]
-                const isCurrent = currentTrack === track
+                const isCurrent = isSameTrack(currentTrack, track)
                 const statusLabel = isCurrent
                     ? (isPlaying ? 'Playing now' : 'Ready to resume')
                     : isCompleted
@@ -154,7 +153,6 @@ const getArtworkForTab = (tab) => {
     if (tab === 'Vaishnav Songs') return vaishnavaSongImg
     if (tab === 'HGRSP') return rspImg
     if (tab === 'HHRDSM') return rdsmImg
-    if (tab === 'Aindra Prabhu') return aindraImg
     return prabhupadaImg
 }
 
@@ -215,6 +213,11 @@ const hashStr = (str) => {
 const getTrackId = (track) => {
     const raw = track?.link || `${track?.title}|${track?.Theme || ''}`
     return hashStr(raw)
+}
+
+const isSameTrack = (a, b) => {
+    if (!a || !b) return false
+    return getTrackId(a) === getTrackId(b)
 }
 
 const formatThemeName = (theme) => {
@@ -883,30 +886,29 @@ const VaniPlayer = () => {
 
     const handlePlay = React.useCallback(async (track, trackTab) => {
         setPlaybackError(null);
+        const audio = audioRef.current;
         const resolved = resolveUrl(track);
-        if (currentTrack === track) {
+        if (isSameTrack(currentTrack, track)) {
             if (trackTab && trackTab !== currentTrackTab) setCurrentTrackTab(trackTab);
-            if (isPlaying) {
-                audioRef.current.pause();
-                setIsPlaying(false);
+            if (!audio.paused && !audio.ended) {
+                audio.pause();
                 saveProgressNow(true);
             } else {
+                if (audio.ended && audio.duration) audio.currentTime = 0;
                 try {
-                    await audioRef.current.play();
-                    setIsPlaying(true);
+                    await audio.play();
                 } catch {
                     // Audio not loaded yet — reload and wait for it before retrying
-                    audioRef.current.src = resolved;
-                    audioRef.current.load();
+                    audio.src = resolved;
+                    audio.load();
                     try {
                         await new Promise((res, rej) => {
-                            const onReady = () => { audioRef.current.removeEventListener('canplay', onReady); audioRef.current.removeEventListener('error', onErr); res(); }
-                            const onErr = () => { audioRef.current.removeEventListener('canplay', onReady); audioRef.current.removeEventListener('error', onErr); rej(new Error('load failed')); }
-                            audioRef.current.addEventListener('canplay', onReady, { once: true });
-                            audioRef.current.addEventListener('error', onErr, { once: true });
+                            const onReady = () => { audio.removeEventListener('canplay', onReady); audio.removeEventListener('error', onErr); res(); }
+                            const onErr = () => { audio.removeEventListener('canplay', onReady); audio.removeEventListener('error', onErr); rej(new Error('load failed')); }
+                            audio.addEventListener('canplay', onReady, { once: true });
+                            audio.addEventListener('error', onErr, { once: true });
                         });
-                        await audioRef.current.play();
-                        setIsPlaying(true);
+                        await audio.play();
                     } catch {
                         setPlaybackError("Couldn't resume. Tap the track again.");
                     }
@@ -921,21 +923,21 @@ const VaniPlayer = () => {
         saveProgressNow(true);
         setCurrentTrack(track);
         if (trackTab) setCurrentTrackTab(trackTab);
-        audioRef.current.src = resolved;
-        audioRef.current.playbackRate = playbackRate;
-        audioRef.current.load();
+        audio.pause();
+        audio.src = resolved;
+        audio.playbackRate = playbackRate;
+        audio.load();
         // Restore saved position for this track
         const savedTime = savedPositions[getTrackId(track)];
         if (savedTime > 0) {
             const seekWhenReady = () => {
-                audioRef.current.currentTime = savedTime;
-                audioRef.current.removeEventListener('loadedmetadata', seekWhenReady);
+                audio.currentTime = savedTime;
+                audio.removeEventListener('loadedmetadata', seekWhenReady);
             };
-            audioRef.current.addEventListener('loadedmetadata', seekWhenReady);
+            audio.addEventListener('loadedmetadata', seekWhenReady);
         }
         try {
-            await audioRef.current.play();
-            setIsPlaying(true);
+            await audio.play();
             // Force cloud save immediately when a new track starts
             if (isCloudEnabled()) {
                 lastCloudSaveRef.current = Date.now()
@@ -954,12 +956,12 @@ const VaniPlayer = () => {
                 const filename = resolved.split('/').pop().replace(/ /g, '%20');
                 const attempts = [`https://audio.iskcondesiretree.com/06_-_More/01_-_ISKCON_Pune/2025/${filename}`, `https://audio.iskcondesiretree.com/06_-_More/07_-_ISKCON_Punjabi_Baugh/2025/${filename}`];
                 for (const alt of attempts) {
-                    try { audioRef.current.src = alt; await audioRef.current.play(); setIsPlaying(true); setPlaybackError(null); return; } catch { continue; }
+                    try { audio.src = alt; await audio.play(); setPlaybackError(null); return; } catch { continue; }
                 }
             }
             setPlaybackError("Link unavailable.");
         }
-    }, [activeTab, currentTrack, currentTrackTab, currentUser, isPlaying, playbackRate, saveProgressNow, saveTrackPosition, savedPositions])
+    }, [activeTab, currentTrack, currentTrackTab, currentUser, playbackRate, saveProgressNow, saveTrackPosition, savedPositions])
 
     const skip = (s) => { if (audioRef.current.duration) audioRef.current.currentTime += s; }
     const changeSpeed = () => {
@@ -1079,8 +1081,16 @@ const VaniPlayer = () => {
             })
         }
         const handleLoadedMetadata = () => update(true)
+        const handlePlaying = () => {
+            setIsPlaying(true)
+            setPlaybackError(null)
+        }
+        const handlePause = () => {
+            setIsPlaying(false)
+        }
         const handleEnded = () => {
             setIsPlaying(false)
+            if (audio.duration) audio.currentTime = 0
             let completedAfter = completedTracksRef.current
             if (currentTrack) {
                 completedAfter = markCompleted(currentTrack)
@@ -1093,23 +1103,25 @@ const VaniPlayer = () => {
             })
         }
         const handleError = () => {
-            if (isPlaying) {
-                setPlaybackError("Transmission interrupted.")
-                setIsPlaying(false)
-            }
+            setPlaybackError("Transmission interrupted.")
+            setIsPlaying(false)
         }
         audio.addEventListener('timeupdate', update)
         audio.addEventListener('loadedmetadata', handleLoadedMetadata)
+        audio.addEventListener('playing', handlePlaying)
+        audio.addEventListener('pause', handlePause)
         audio.addEventListener('ended', handleEnded)
         audio.addEventListener('error', handleError)
         return () => {
             if (rafId) cancelAnimationFrame(rafId)
             audio.removeEventListener('timeupdate', update)
             audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+            audio.removeEventListener('playing', handlePlaying)
+            audio.removeEventListener('pause', handlePause)
             audio.removeEventListener('ended', handleEnded)
             audio.removeEventListener('error', handleError)
         }
-    }, [isPlaying, currentTrack, markCompleted, saveProgressNow, clearTrackPosition])
+    }, [currentTrack, markCompleted, saveProgressNow, clearTrackPosition])
 
     // Media Session API — lock screen controls + notification metadata
     useEffect(() => {
