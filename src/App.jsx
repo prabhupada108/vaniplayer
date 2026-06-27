@@ -198,6 +198,36 @@ const buildShareUrl = (track) => {
     return uniqueSlug ? `${base}${encodeURIComponent(uniqueSlug)}` : base
 }
 
+const getFilenameFromUrl = (url) => {
+    try {
+        const parsed = new URL(url, window.location.href)
+        const name = parsed.pathname.split('/').filter(Boolean).pop()
+        return name ? decodeURIComponent(name) : 'audio.mp3'
+    } catch {
+        return 'audio.mp3'
+    }
+}
+
+const isSameOriginUrl = (url) => {
+    try {
+        return new URL(url, window.location.href).origin === window.location.origin
+    } catch {
+        return false
+    }
+}
+
+const clickHiddenLink = ({ href, download, target = '_blank' }) => {
+    const a = document.createElement('a')
+    a.href = href
+    a.target = target
+    a.rel = 'noopener noreferrer'
+    if (download) a.download = download
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    setTimeout(() => a.remove(), 0)
+}
+
 // Short hash for track IDs — keeps localStorage and cloud compact
 const hashStr = (str) => {
     let h1 = 0xdeadbeef, h2 = 0x41c6ce57
@@ -1048,13 +1078,17 @@ const VaniPlayer = () => {
     const handleDownload = () => {
         if (!currentTrack) return
         const url = resolveUrl(currentTrack)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = decodeURIComponent(url.split('/').pop() || 'audio.mp3')
-        a.target = '_blank'
-        a.rel = 'noopener noreferrer'
-        a.click()
-        showToast('Download started')
+        const filename = getFilenameFromUrl(url)
+
+        if (isSameOriginUrl(url)) {
+            clickHiddenLink({ href: url, download: filename, target: '_self' })
+            showToast('Download started')
+            return
+        }
+
+        const opened = window.open(url, '_blank', 'noopener,noreferrer')
+        if (!opened) clickHiddenLink({ href: url })
+        showToast('Opened audio link. Use browser download menu.')
     }
 
     const handleListScroll = React.useCallback((e) => {
